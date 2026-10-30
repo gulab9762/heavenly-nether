@@ -30,19 +30,11 @@ public class TreeShakeAnimation {
     private boolean settling = false;
     private boolean finished = false;
 
-    // Single reusable state for rendering moving blocks with zero GC allocations per frame
-    private final MovingBlockRenderState movingBlockState = new MovingBlockRenderState();
-
     public TreeShakeAnimation(ClientLevel level, TreeStructure structure, Vec3 punchDir) {
         this.structure = structure;
         this.maxDurationTicks = Math.max(8, BlockPlaceConfig.treeShakeDurationTicks);
 
         setPunchDirection(punchDir);
-
-        this.movingBlockState.randomSeedPos = structure.getRootPos();
-        this.movingBlockState.blockPos = structure.getRootPos();
-        this.movingBlockState.cardinalLighting = level.cardinalLighting();
-        this.movingBlockState.lightEngine = level.getLightEngine();
     }
 
     private void setPunchDirection(Vec3 dir) {
@@ -233,12 +225,7 @@ public class TreeShakeAnimation {
 
             poseStack.translate(-0.5, -0.5, -0.5);
 
-            movingBlockState.randomSeedPos = pos;
-            movingBlockState.blockPos = pos;
-            movingBlockState.blockState = entry.state();
-            movingBlockState.biome = level.getBiome(pos);
-
-            collector.submitMovingBlock(poseStack, movingBlockState, 0);
+            collector.submitMovingBlock(poseStack, entry.renderState(), 0);
 
             poseStack.popPose();
         }

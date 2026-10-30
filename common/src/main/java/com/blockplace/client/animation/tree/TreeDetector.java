@@ -1,6 +1,7 @@
 package com.blockplace.client.animation.tree;
 
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.block.MovingBlockRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
@@ -158,7 +159,15 @@ public class TreeDetector {
             float radialDist = (float) Math.sqrt(rx * rx + rz * rz);
             int seed = (pos.getX() * 31 + pos.getY() * 17 + pos.getZ() * 23) & 0xFFFF;
 
-            entries.add(new TreeBlockEntry(pos, state, false, heightFraction, radialDist, seed));
+            MovingBlockRenderState renderState = new MovingBlockRenderState();
+            renderState.randomSeedPos = pos;
+            renderState.blockPos = pos;
+            renderState.blockState = state;
+            renderState.biome = level.getBiome(pos);
+            renderState.cardinalLighting = level.cardinalLighting();
+            renderState.lightEngine = level.getLightEngine();
+
+            entries.add(new TreeBlockEntry(pos, state, false, heightFraction, radialDist, seed, renderState));
         }
 
         for (BlockPos pos : foundLeaves) {
@@ -171,7 +180,15 @@ public class TreeDetector {
             float radialDist = (float) Math.sqrt(rx * rx + rz * rz);
             int seed = (pos.getX() * 31 + pos.getY() * 17 + pos.getZ() * 23) & 0xFFFF;
 
-            entries.add(new TreeBlockEntry(pos, state, true, heightFraction, radialDist, seed));
+            MovingBlockRenderState renderState = new MovingBlockRenderState();
+            renderState.randomSeedPos = pos;
+            renderState.blockPos = pos;
+            renderState.blockState = state;
+            renderState.biome = level.getBiome(pos);
+            renderState.cardinalLighting = level.cardinalLighting();
+            renderState.lightEngine = level.getLightEngine();
+
+            entries.add(new TreeBlockEntry(pos, state, true, heightFraction, radialDist, seed, renderState));
         }
 
         if (entries.isEmpty()) {
