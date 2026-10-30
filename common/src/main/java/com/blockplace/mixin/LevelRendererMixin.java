@@ -1,6 +1,5 @@
 package com.blockplace.mixin;
 
-import com.blockplace.client.animation.BlockPlacementManager;
 import com.blockplace.client.animation.tree.TreeShakeManager;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -19,7 +18,6 @@ public abstract class LevelRendererMixin {
             at = @At("TAIL")
     )
     private void blockplace$renderActiveAnimations(PoseStack poseStack, SubmitNodeCollector submitNodeCollector, LevelRenderState levelRenderState, CallbackInfo ci) {
-        BlockPlacementManager.renderAll(poseStack, submitNodeCollector, levelRenderState);
         TreeShakeManager.renderAll(poseStack, submitNodeCollector, levelRenderState);
     }
 }

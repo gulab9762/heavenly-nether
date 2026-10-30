@@ -3,9 +3,7 @@
   "minVersion": "0.8",
   "package": "com.blockplace.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
-    "BlockItemMixin"
-  ],
+  "mixins": [],
   "client": [
     "BlockEntityRenderDispatcherMixin",
     "LevelRendererMixin",

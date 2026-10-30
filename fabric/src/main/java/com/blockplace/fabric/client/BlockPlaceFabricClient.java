@@ -1,7 +1,6 @@
 package com.blockplace.fabric.client;
 
 import com.blockplace.Constants;
-import com.blockplace.client.animation.BlockPlacementManager;
 import com.blockplace.client.animation.tree.TreeShakeManager;
 import com.blockplace.client.config.BlockPlaceConfig;
 import com.blockplace.client.gui.TreeShakeConfigScreen;
@@ -24,17 +23,15 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
         // Load persisted config on client startup
         BlockPlaceConfig.load();
 
-        // Tick active block placement and tree animations every client game tick
+        // Tick active tree animations every client game tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.level != null && !client.isPaused()) {
-                BlockPlacementManager.tick(client.level);
                 TreeShakeManager.tick(client.level);
             }
         });
 
         // Reset animations on disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            BlockPlacementManager.clear();
             TreeShakeManager.clear();
         });
 
@@ -64,11 +61,11 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
                             .executes(context -> toggleTreeShake(context.getSource()))
             );
 
-            // 2. /blockplace command
+            // 2. /blockplace alias for backwards compatibility
             dispatcher.register(
                     ClientCommands.literal("blockplace")
                             .then(ClientCommands.literal("toggle")
-                                    .executes(context -> toggleAnimation(context.getSource()))
+                                    .executes(context -> toggleTreeShake(context.getSource()))
                             )
                             .then(ClientCommands.literal("config")
                                     .executes(context -> openTreeShakeConfig(context.getSource()))
@@ -95,23 +92,7 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
                                     )
                                     .executes(context -> toggleTreeShake(context.getSource()))
                             )
-                            .then(ClientCommands.literal("style")
-                                    .then(ClientCommands.argument("value", StringArgumentType.word())
-                                            .suggests((context, builder) -> {
-                                                for (BlockPlaceConfig.AnimationStyle s : BlockPlaceConfig.AnimationStyle.values()) {
-                                                    builder.suggest(s.name().toLowerCase());
-                                                }
-                                                builder.suggest("vanilla");
-                                                return builder.buildFuture();
-                                            })
-                                            .executes(context -> {
-                                                String val = StringArgumentType.getString(context, "value");
-                                                return applyStyleCommand(context.getSource(), val);
-                                            })
-                                    )
-                                    .executes(context -> showCurrentStyle(context.getSource()))
-                            )
-                            .executes(context -> showCurrentStyle(context.getSource()))
+                            .executes(context -> openTreeShakeConfig(context.getSource()))
             );
         });
     }
@@ -119,19 +100,6 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
     private static int openTreeShakeConfig(FabricClientCommandSource source) {
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> client.setScreenAndShow(new TreeShakeConfigScreen(client.gui.screen())));
-        return 1;
-    }
-
-    private static int toggleAnimation(FabricClientCommandSource source) {
-        if (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) {
-            BlockPlaceConfig.style = BlockPlaceConfig.AnimationStyle.ROTATING;
-            BlockPlaceConfig.save();
-            source.sendFeedback(Component.literal("§a[Block Place] §fPlacement animations §aENABLED §f(style: §erotating§f)"));
-        } else {
-            BlockPlaceConfig.style = BlockPlaceConfig.AnimationStyle.NONE;
-            BlockPlaceConfig.save();
-            source.sendFeedback(Component.literal("§a[Block Place] §fPlacement animations §cDISABLED §7(pure vanilla placement)"));
-        }
         return 1;
     }
 
@@ -163,24 +131,5 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
             source.sendError(Component.literal("§c[Tree Shake] §fUnknown option: '§c" + val + "§f'. Use: §eon, off, toggle, config"));
             return 0;
         }
-    }
-
-    private static int applyStyleCommand(FabricClientCommandSource source, String val) {
-        if (BlockPlaceConfig.setStyle(val)) {
-            String name = (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) ? "none (vanilla placement)" : BlockPlaceConfig.style.name().toLowerCase();
-            source.sendFeedback(Component.literal("§a[Block Place] §fAnimation style set to: §e" + name));
-            return 1;
-        } else {
-            source.sendError(Component.literal("§c[Block Place] §fUnknown style: '§c" + val + "§f'. Available: §esmooth, rotating, pop, drop, spiral, expand, spring, none"));
-            return 0;
-        }
-    }
-
-    private static int showCurrentStyle(FabricClientCommandSource source) {
-        String name = (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) ? "none (vanilla)" : BlockPlaceConfig.style.name().toLowerCase();
-        String treeStatus = BlockPlaceConfig.enableTreeShake ? "§aenabled" : "§cdisabled";
-        source.sendFeedback(Component.literal("§a[Block Place] §fPlacement style: §e" + name + " §7| Tree shake: " + treeStatus));
-        source.sendFeedback(Component.literal("§7Use §f/treeshake toggle§7, §f/treeshake config§7, or §f/blockplace style <name>"));
-        return 1;
     }
 }
