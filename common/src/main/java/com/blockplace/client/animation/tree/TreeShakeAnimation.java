@@ -12,7 +12,7 @@ import org.joml.Quaternionf;
 
 /**
  * Manages the client-side cartoonish wobble, inverse pendulum sway, squash and stretch,
- * and foliage flutter for a shaking tree.
+ * stem ripples, and foliage flutter for a shaking tree.
  */
 public class TreeShakeAnimation {
 
@@ -78,12 +78,11 @@ public class TreeShakeAnimation {
      */
     public void punch(Vec3 newPunchDir) {
         if (newPunchDir.lengthSqr() > 1e-4) {
-            // Blend previous direction with new punch direction
             Vec3 blended = this.punchDir.scale(0.35).add(newPunchDir.scale(0.65));
             setPunchDirection(blended);
         }
 
-        this.impulseStrength = Math.min(1.7f, this.impulseStrength + 0.35f);
+        this.impulseStrength = Math.min(1.8f, this.impulseStrength + 0.40f);
         this.ageTicks = Math.min(2, this.ageTicks);
         this.settling = false;
         this.ticksSinceLastPunch = 0;
@@ -123,7 +122,7 @@ public class TreeShakeAnimation {
 
         float wobbleMain = 0.0f;
         float wobbleCross = 0.0f;
-        float tiltAngle = 0.0f;
+        float tiltAngleRad = 0.0f;
         float squashY = 1.0f;
         float stretchXZ = 1.0f;
 
@@ -136,16 +135,17 @@ public class TreeShakeAnimation {
             // Asymmetric secondary cross-wobble for delightful 3D organic figure-8 jiggle
             wobbleCross = (float) (Math.sin(p * 3.0 * Math.PI) * Math.cos(p * 2.0 * Math.PI)) * decay * 0.38f;
 
-            // Rotational tilt in degrees
-            tiltAngle = wobbleMain * 4.2f * BlockPlaceConfig.treeShakeIntensity;
+            // Unified tilt angle around root anchor
+            tiltAngleRad = (float) Math.toRadians(wobbleMain * 5.2f * BlockPlaceConfig.treeShakeIntensity);
 
             // Cartoon squash and stretch: compresses vertically on impact, stretches on rebound
-            squashY = 1.0f - 0.09f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
-            stretchXZ = 1.0f + 0.045f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
+            squashY = 1.0f - 0.11f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
+            stretchXZ = 1.0f + 0.055f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
         }
 
         Vec3 cameraPos = levelRenderState.cameraRenderState.pos;
         BlockPos rootPos = structure.getRootPos();
+        BlockPos hitPos = structure.getHitPos();
         Vec3 rootCenter = Vec3.atCenterOf(rootPos);
 
         double rootCamX = rootCenter.x - cameraPos.x();
@@ -161,10 +161,37 @@ public class TreeShakeAnimation {
             double relZ = blockCenter.z - rootCenter.z;
 
             float h = entry.heightFraction();
-            float bendFactor = (float) Math.pow(h, 1.25);
 
-            double swayX = (punchDir.x * wobbleMain + crossDir.x * wobbleCross) * 0.40 * bendFactor;
-            double swayZ = (punchDir.z * wobbleMain + crossDir.z * wobbleCross) * 0.40 * bendFactor;
+            // Stem & canopy sway progression:
+            // Base has 28% cartoon rubbery give; height adds up to 100%
+            float baseFactor = 0.28f;
+            float heightFactor = 0.72f * (float) Math.pow(h, 0.85);
+            float swayFactor = baseFactor + heightFactor;
+
+            // Direct punch impact shockwave at the punched height
+            float punchDistY = Math.abs(pos.getY() - hitPos.getY());
+            float impactRecoil = 0.0f;
+            if (p < 1.0f) {
+                impactRecoil = (float) Math.exp(-0.35f * punchDistY) * (1.0f - p) * 0.12f * (float) Math.sin(p * 8.0 * Math.PI);
+            }
+
+            // High-frequency ripple traveling up the stem / trunk
+            float ripple = 0.0f;
+            if (p < 1.0f) {
+                ripple = (float) Math.sin(p * 7.0 * Math.PI - relY * 0.65) * (1.0f - p) * 0.045f;
+            }
+
+            // Continuous trunk curvature around tree base anchor
+            double tiltX = relY * Math.sin(tiltAngleRad) * punchDir.x;
+            double tiltZ = relY * Math.sin(tiltAngleRad) * punchDir.z;
+            double tiltY = relY * (Math.cos(tiltAngleRad) - 1.0);
+
+            double mainSway = (wobbleMain * 0.42 * swayFactor) + impactRecoil + ripple;
+            double crossSway = (wobbleCross * 0.35 * swayFactor);
+
+            double swayX = punchDir.x * mainSway + crossDir.x * crossSway + tiltX;
+            double swayZ = punchDir.z * mainSway + crossDir.z * crossSway + tiltZ;
+            double swayY = tiltY;
 
             double leafFlutterX = 0;
             double leafFlutterY = 0;
@@ -182,17 +209,17 @@ public class TreeShakeAnimation {
             }
 
             double renderX = rootCamX + relX * stretchXZ + swayX + leafFlutterX;
-            double renderY = rootCamY + relY * squashY + leafFlutterY;
+            double renderY = rootCamY + relY * squashY + swayY + leafFlutterY;
             double renderZ = rootCamZ + relZ * stretchXZ + swayZ + leafFlutterZ;
 
             poseStack.pushPose();
 
             poseStack.translate(renderX, renderY, renderZ);
 
-            if (tiltAngle != 0.0f) {
-                float blockTilt = tiltAngle * bendFactor;
+            if (tiltAngleRad != 0.0f) {
+                float blockTiltDeg = (float) Math.toDegrees(tiltAngleRad) * swayFactor;
                 Quaternionf tiltQuat = new Quaternionf().rotationAxis(
-                        (float) Math.toRadians(blockTilt),
+                        (float) Math.toRadians(blockTiltDeg),
                         (float) crossDir.x,
                         0.0f,
                         (float) crossDir.z

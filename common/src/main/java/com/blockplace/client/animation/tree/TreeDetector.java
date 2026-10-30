@@ -3,22 +3,53 @@ package com.blockplace.client.animation.tree;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.*;
 
 /**
- * Fast breadth-first search detector that identifies connected tree logs and canopy leaves.
+ * Fast breadth-first search detector that identifies connected tree stems, trunks,
+ * branches, and canopy foliage.
  */
 public class TreeDetector {
 
-    public static final int MAX_LOGS = 160;
-    public static final int MAX_LEAVES = 384;
-    public static final int MAX_HORIZONTAL_RADIUS = 9;
+    public static final int MAX_LOGS = 180;
+    public static final int MAX_LEAVES = 400;
+    public static final int MAX_HORIZONTAL_RADIUS = 10;
     public static final int MAX_VERTICAL_UP = 36;
-    public static final int MAX_VERTICAL_DOWN = 4;
-    public static final int MAX_LEAF_DISTANCE = 3;
+    public static final int MAX_VERTICAL_DOWN = 32;
+    public static final int MAX_LEAF_DISTANCE = 4;
+
+    /**
+     * Checks if a block state represents a tree trunk, stem, or root pillar.
+     */
+    public static boolean isStemOrLog(BlockState state) {
+        if (state == null) return false;
+        return state.is(BlockTags.LOGS)
+                || state.is(Blocks.MUSHROOM_STEM)
+                || state.is(Blocks.WARPED_STEM)
+                || state.is(Blocks.STRIPPED_WARPED_STEM)
+                || state.is(Blocks.CRIMSON_STEM)
+                || state.is(Blocks.STRIPPED_CRIMSON_STEM)
+                || state.is(Blocks.BAMBOO_BLOCK)
+                || state.is(Blocks.STRIPPED_BAMBOO_BLOCK)
+                || state.is(Blocks.MANGROVE_ROOTS);
+    }
+
+    /**
+     * Checks if a block state represents tree leaves, wart blocks, or huge mushroom caps.
+     */
+    public static boolean isFoliageOrLeaves(BlockState state) {
+        if (state == null) return false;
+        return state.is(BlockTags.LEAVES)
+                || state.is(BlockTags.WART_BLOCKS)
+                || state.is(Blocks.RED_MUSHROOM_BLOCK)
+                || state.is(Blocks.BROWN_MUSHROOM_BLOCK)
+                || state.is(Blocks.SHROOMLIGHT)
+                || state.is(Blocks.MANGROVE_LEAVES);
+    }
 
     /**
      * Attempts to find a connected tree structure starting from the punched block.
@@ -29,55 +60,44 @@ public class TreeDetector {
      */
     public static TreeStructure findTree(ClientLevel level, BlockPos startPos) {
         BlockState startState = level.getBlockState(startPos);
-        boolean isLog = startState.is(BlockTags.LOGS);
-        boolean isLeaf = startState.is(BlockTags.LEAVES) || startState.is(BlockTags.WART_BLOCKS);
+        boolean isStem = isStemOrLog(startState);
+        boolean isFoliage = isFoliageOrLeaves(startState);
 
-        if (!isLog && !isLeaf) {
+        if (!isStem && !isFoliage) {
             return null;
         }
 
         Set<BlockPos> foundLogs = new HashSet<>();
         Set<BlockPos> foundLeaves = new HashSet<>();
 
-        if (isLog) {
-            // Standard trunk punch: find connected logs first, then attached leaves
-            collectLogs(level, startPos, foundLogs);
+        if (isStem) {
+            // Player punched the stem / trunk directly
+            collectStemLogs(level, startPos, foundLogs);
             if (foundLogs.isEmpty()) {
                 return null;
             }
-            collectLeavesFromLogs(level, foundLogs, foundLeaves);
+            collectCanopyLeaves(level, foundLogs, foundLeaves);
         } else {
-            // Leaf punch: find connected leaves and nearby trunk
-            collectLeaves(level, startPos, foundLeaves);
-            // Check if any leaf touches a log to find the full tree
-            for (BlockPos leafPos : foundLeaves) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    for (int dy = -1; dy <= 1; dy++) {
-                        for (int dz = -1; dz <= 1; dz++) {
-                            BlockPos neighbor = leafPos.offset(dx, dy, dz);
-                            if (level.getBlockState(neighbor).is(BlockTags.LOGS)) {
-                                collectLogs(level, neighbor, foundLogs);
-                                break;
-                            }
-                        }
-                        if (!foundLogs.isEmpty()) break;
-                    }
-                    if (!foundLogs.isEmpty()) break;
-                }
-                if (!foundLogs.isEmpty()) break;
-            }
+            // Player punched a leaf / foliage block (e.g. canopy hanging down)
+            // First locate the connected stem / trunk of this tree
+            BlockPos stemSeed = findStemSeedFromFoliage(level, startPos);
 
-            if (!foundLogs.isEmpty()) {
-                collectLeavesFromLogs(level, foundLogs, foundLeaves);
+            if (stemSeed != null) {
+                // Collect entire stem from ground root to top branches
+                collectStemLogs(level, stemSeed, foundLogs);
+                // Collect all canopy leaves attached to this stem
+                collectCanopyLeaves(level, foundLogs, foundLeaves);
+                // Also ensure the initial punched leaf cluster is included
+                collectFoliageCluster(level, startPos, foundLeaves);
+            } else {
+                // Standalone foliage hedge with no stem within reach
+                collectFoliageCluster(level, startPos, foundLeaves);
             }
         }
 
-        // Validate structure: must have leaves, or be a small standalone trunk pillar
-        if (foundLeaves.isEmpty()) {
-            if (foundLogs.size() > 8) {
-                // Large structure without leaves is likely a wooden house or wall
-                return null;
-            }
+        // Validate: if it's a huge wooden building with zero leaves, don't shake it
+        if (foundLeaves.isEmpty() && foundLogs.size() > 8) {
+            return null;
         }
 
         if (foundLogs.isEmpty() && foundLeaves.isEmpty()) {
@@ -117,7 +137,7 @@ public class TreeDetector {
             maxZ = Math.max(maxZ, pos.getZ());
         }
 
-        // Determine root pivot: center of base logs, or fallback to min position
+        // Determine root pivot: base of trunk where stem touches ground
         BlockPos rootPos;
         if (!baseLogs.isEmpty()) {
             rootPos = baseLogs.get(0);
@@ -161,10 +181,13 @@ public class TreeDetector {
         BlockPos minPos = new BlockPos(minX, minY, minZ);
         BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
 
-        return new TreeStructure(rootPos, minPos, maxPos, entries);
+        return new TreeStructure(startPos, rootPos, minPos, maxPos, entries);
     }
 
-    private static void collectLogs(ClientLevel level, BlockPos origin, Set<BlockPos> foundLogs) {
+    /**
+     * Traverses the entire stem / trunk column and branches using 26-neighborhood BFS.
+     */
+    private static void collectStemLogs(ClientLevel level, BlockPos origin, Set<BlockPos> foundLogs) {
         Queue<BlockPos> queue = new ArrayDeque<>();
         queue.add(origin);
         foundLogs.add(origin);
@@ -186,7 +209,7 @@ public class TreeDetector {
                             continue;
                         }
 
-                        if (!foundLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
+                        if (!foundLogs.contains(neighbor) && isStemOrLog(level.getBlockState(neighbor))) {
                             foundLogs.add(neighbor);
                             queue.add(neighbor);
                         }
@@ -196,11 +219,69 @@ public class TreeDetector {
         }
     }
 
-    private static void collectLeavesFromLogs(ClientLevel level, Set<BlockPos> logs, Set<BlockPos> foundLeaves) {
+    /**
+     * Finds the stem / trunk seed block when starting from a leaf punch.
+     */
+    private static BlockPos findStemSeedFromFoliage(ClientLevel level, BlockPos startPos) {
+        // 1. First search immediate connected foliage for any touching stem
+        Queue<BlockPos> queue = new ArrayDeque<>();
+        Set<BlockPos> visited = new HashSet<>();
+        queue.add(startPos);
+        visited.add(startPos);
+
+        while (!queue.isEmpty() && visited.size() < 120) {
+            BlockPos current = queue.poll();
+
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        BlockPos neighbor = current.offset(dx, dy, dz);
+                        BlockState state = level.getBlockState(neighbor);
+
+                        if (isStemOrLog(state)) {
+                            return neighbor.immutable();
+                        }
+
+                        if (!visited.contains(neighbor) && isFoliageOrLeaves(state)) {
+                            if (Math.abs(neighbor.getX() - startPos.getX()) <= 7 &&
+                                Math.abs(neighbor.getZ() - startPos.getZ()) <= 7 &&
+                                neighbor.getY() >= startPos.getY() - 6 &&
+                                neighbor.getY() <= startPos.getY() + 16) {
+                                visited.add(neighbor);
+                                queue.add(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. If foliage was disconnected or outer shell, search radially outward up to 5 blocks
+        for (int r = 1; r <= 5; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dy = -4; dy <= 8; dy++) {
+                    for (int dz = -r; dz <= r; dz++) {
+                        if (Math.abs(dx) != r && Math.abs(dz) != r) continue;
+                        BlockPos check = startPos.offset(dx, dy, dz);
+                        if (isStemOrLog(level.getBlockState(check))) {
+                            return check.immutable();
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Gathers all canopy leaves attached to any log in the stem.
+     */
+    private static void collectCanopyLeaves(ClientLevel level, Set<BlockPos> logs, Set<BlockPos> foundLeaves) {
         record LeafNode(BlockPos pos, int distance) {}
         Queue<LeafNode> queue = new ArrayDeque<>();
 
-        // Seed with leaves directly adjacent to logs
+        // Seed with leaves directly adjacent to any stem log
         for (BlockPos logPos : logs) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
@@ -208,7 +289,7 @@ public class TreeDetector {
                         BlockPos neighbor = logPos.offset(dx, dy, dz);
                         if (!logs.contains(neighbor) && !foundLeaves.contains(neighbor)) {
                             BlockState state = level.getBlockState(neighbor);
-                            if (state.is(BlockTags.LEAVES) || state.is(BlockTags.WART_BLOCKS)) {
+                            if (isFoliageOrLeaves(state)) {
                                 foundLeaves.add(neighbor);
                                 queue.add(new LeafNode(neighbor, 1));
                             }
@@ -229,12 +310,12 @@ public class TreeDetector {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dz = -1; dz <= 1; dz++) {
-                        if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 2) continue; // up to 18-neighborhood for compact BFS
+                        if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 2) continue;
 
                         BlockPos neighbor = current.pos.offset(dx, dy, dz);
                         if (!logs.contains(neighbor) && !foundLeaves.contains(neighbor)) {
                             BlockState state = level.getBlockState(neighbor);
-                            if (state.is(BlockTags.LEAVES) || state.is(BlockTags.WART_BLOCKS)) {
+                            if (isFoliageOrLeaves(state)) {
                                 foundLeaves.add(neighbor);
                                 queue.add(new LeafNode(neighbor, current.distance + 1));
                             }
@@ -245,7 +326,10 @@ public class TreeDetector {
         }
     }
 
-    private static void collectLeaves(ClientLevel level, BlockPos origin, Set<BlockPos> foundLeaves) {
+    /**
+     * Collects a compact foliage cluster (e.g. for standalone bushes or starting punch).
+     */
+    private static void collectFoliageCluster(ClientLevel level, BlockPos origin, Set<BlockPos> foundLeaves) {
         Queue<BlockPos> queue = new ArrayDeque<>();
         queue.add(origin);
         foundLeaves.add(origin);
@@ -259,15 +343,15 @@ public class TreeDetector {
                         if (dx == 0 && dy == 0 && dz == 0) continue;
 
                         BlockPos neighbor = current.offset(dx, dy, dz);
-                        if (Math.abs(neighbor.getX() - origin.getX()) > 6 ||
-                            Math.abs(neighbor.getZ() - origin.getZ()) > 6 ||
-                            Math.abs(neighbor.getY() - origin.getY()) > 6) {
+                        if (Math.abs(neighbor.getX() - origin.getX()) > 8 ||
+                            Math.abs(neighbor.getZ() - origin.getZ()) > 8 ||
+                            Math.abs(neighbor.getY() - origin.getY()) > 12) {
                             continue;
                         }
 
                         if (!foundLeaves.contains(neighbor)) {
                             BlockState state = level.getBlockState(neighbor);
-                            if (state.is(BlockTags.LEAVES) || state.is(BlockTags.WART_BLOCKS)) {
+                            if (isFoliageOrLeaves(state)) {
                                 foundLeaves.add(neighbor);
                                 queue.add(neighbor);
                             }

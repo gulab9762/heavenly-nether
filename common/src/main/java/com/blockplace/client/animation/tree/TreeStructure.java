@@ -10,6 +10,7 @@ import java.util.*;
  */
 public class TreeStructure {
 
+    private final BlockPos hitPos;
     private final BlockPos rootPos;
     private final BlockPos minPos;
     private final BlockPos maxPos;
@@ -26,7 +27,8 @@ public class TreeStructure {
     private final List<TreeBlockEntry> leaves;
     private final Set<BlockPos> blockPositions;
 
-    public TreeStructure(BlockPos rootPos, BlockPos minPos, BlockPos maxPos, List<TreeBlockEntry> entries) {
+    public TreeStructure(BlockPos hitPos, BlockPos rootPos, BlockPos minPos, BlockPos maxPos, List<TreeBlockEntry> entries) {
+        this.hitPos = hitPos != null ? hitPos : rootPos;
         this.rootPos = rootPos;
         this.minPos = minPos;
         this.maxPos = maxPos;
@@ -51,6 +53,14 @@ public class TreeStructure {
                 this.logs.add(entry);
             }
         }
+    }
+
+    public TreeStructure(BlockPos rootPos, BlockPos minPos, BlockPos maxPos, List<TreeBlockEntry> entries) {
+        this(rootPos, rootPos, minPos, maxPos, entries);
+    }
+
+    public BlockPos getHitPos() {
+        return hitPos;
     }
 
     public BlockPos getRootPos() {
