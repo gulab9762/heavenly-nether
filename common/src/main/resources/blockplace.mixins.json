@@ -9,6 +9,7 @@
   "client": [
     "BlockEntityRenderDispatcherMixin",
     "LevelRendererMixin",
+    "MultiPlayerGameModeMixin",
     "RenderSectionRegionMixin"
   ],
   "injectors": {

@@ -67,6 +67,31 @@ public class BlockPlaceConfig {
     public static boolean firstPersonOnly = true;
 
     /**
+     * Whether cartoon tree punch shake animations are enabled.
+     */
+    public static boolean enableTreeShake = true;
+
+    /**
+     * Multiplier for tree wobble displacement and tilt intensity.
+     */
+    public static float treeShakeIntensity = 1.0f;
+
+    /**
+     * Duration of the tree wobble animation in ticks (14 ticks ~ 700ms).
+     */
+    public static int treeShakeDurationTicks = 14;
+
+    /**
+     * Whether to spawn wood splinters and falling canopy leaves when punching trees.
+     */
+    public static boolean enableTreeParticles = true;
+
+    /**
+     * Whether to play wood impact and rustling foliage audio when punching trees.
+     */
+    public static boolean enableTreeSound = true;
+
+    /**
      * Loads saved configuration from config/blockplace.json.
      */
     public static void load() {
@@ -85,7 +110,12 @@ public class BlockPlaceConfig {
                 if (json.has("arcHeight")) arcHeight = json.get("arcHeight").getAsFloat();
                 if (json.has("enableSettleBounce")) enableSettleBounce = json.get("enableSettleBounce").getAsBoolean();
                 if (json.has("enableArrivalParticles")) enableArrivalParticles = json.get("enableArrivalParticles").getAsBoolean();
-                Constants.LOG.info("Loaded {} config from {}, style={}", Constants.MOD_NAME, CONFIG_PATH, style);
+                if (json.has("enableTreeShake")) enableTreeShake = json.get("enableTreeShake").getAsBoolean();
+                if (json.has("treeShakeIntensity")) treeShakeIntensity = json.get("treeShakeIntensity").getAsFloat();
+                if (json.has("treeShakeDurationTicks")) treeShakeDurationTicks = json.get("treeShakeDurationTicks").getAsInt();
+                if (json.has("enableTreeParticles")) enableTreeParticles = json.get("enableTreeParticles").getAsBoolean();
+                if (json.has("enableTreeSound")) enableTreeSound = json.get("enableTreeSound").getAsBoolean();
+                Constants.LOG.info("Loaded {} config from {}, style={}, treeShake={}", Constants.MOD_NAME, CONFIG_PATH, style, enableTreeShake);
             } else {
                 save();
             }
@@ -109,8 +139,13 @@ public class BlockPlaceConfig {
             json.addProperty("arcHeight", arcHeight);
             json.addProperty("enableSettleBounce", enableSettleBounce);
             json.addProperty("enableArrivalParticles", enableArrivalParticles);
+            json.addProperty("enableTreeShake", enableTreeShake);
+            json.addProperty("treeShakeIntensity", treeShakeIntensity);
+            json.addProperty("treeShakeDurationTicks", treeShakeDurationTicks);
+            json.addProperty("enableTreeParticles", enableTreeParticles);
+            json.addProperty("enableTreeSound", enableTreeSound);
             Files.writeString(CONFIG_PATH, GSON.toJson(json));
-            Constants.LOG.info("Saved {} config to {}, style={}", Constants.MOD_NAME, CONFIG_PATH, style);
+            Constants.LOG.info("Saved {} config to {}, style={}, treeShake={}", Constants.MOD_NAME, CONFIG_PATH, style, enableTreeShake);
         } catch (Exception e) {
             Constants.LOG.error("Failed to save config to {}", CONFIG_PATH, e);
         }

@@ -1,6 +1,7 @@
 package com.blockplace.mixin;
 
 import com.blockplace.client.animation.BlockPlacementManager;
+import com.blockplace.client.animation.tree.TreeShakeManager;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -25,7 +26,7 @@ public abstract class BlockEntityRenderDispatcherMixin {
             boolean bl,
             CallbackInfoReturnable<S> cir
     ) {
-        if (BlockPlacementManager.isBlockHidden(blockEntity.getBlockPos())) {
+        if (BlockPlacementManager.isBlockHidden(blockEntity.getBlockPos()) || TreeShakeManager.isBlockHidden(blockEntity.getBlockPos())) {
             cir.setReturnValue(null);
         }
     }

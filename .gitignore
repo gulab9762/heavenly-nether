@@ -6,6 +6,8 @@ out/
 *.iml
 *.ipr
 *.iws
+run/
+*/run/
 runs/
 */runs/
 bin/
