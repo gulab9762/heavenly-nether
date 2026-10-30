@@ -48,6 +48,23 @@ public class TreeShakeManager {
     }
 
     /**
+     * Called when the player right-clicks (interacts with) a block.
+     * Only triggers if the block is a wooden log or stem.
+     */
+    public static void onRightClickBlock(ClientLevel level, Player player, BlockPos pos, Direction direction) {
+        if (!BlockPlaceConfig.enableTreeShake) {
+            return;
+        }
+
+        BlockState state = level.getBlockState(pos);
+        if (!TreeDetector.isStemOrLog(state)) {
+            return; // Wooden blocks ONLY
+        }
+
+        onPunchBlock(level, player, pos, direction);
+    }
+
+    /**
      * Called when the player punches (left-clicks) a block.
      */
     public static void onPunchBlock(ClientLevel level, Player player, BlockPos pos, Direction direction) {

@@ -5,6 +5,7 @@ import com.blockplace.Constants;
 import com.blockplace.client.animation.BlockPlacementManager;
 import com.blockplace.client.animation.tree.TreeShakeManager;
 import com.blockplace.client.config.BlockPlaceConfig;
+import com.blockplace.client.gui.TreeShakeConfigScreen;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
@@ -47,17 +48,52 @@ public class BlockPlaceNeoForge {
         public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
             BlockPlaceConfig.load();
 
+            // 1. Dedicated /treeshake command
+            event.getDispatcher().register(
+                    Commands.literal("treeshake")
+                            .then(Commands.literal("toggle")
+                                    .executes(context -> toggleTreeShake(context.getSource()))
+                            )
+                            .then(Commands.literal("on")
+                                    .executes(context -> setTreeShake(context.getSource(), true))
+                            )
+                            .then(Commands.literal("off")
+                                    .executes(context -> setTreeShake(context.getSource(), false))
+                            )
+                            .then(Commands.literal("config")
+                                    .executes(context -> openTreeShakeConfig(context.getSource()))
+                            )
+                            .then(Commands.literal("gui")
+                                    .executes(context -> openTreeShakeConfig(context.getSource()))
+                            )
+                            .then(Commands.literal("menu")
+                                    .executes(context -> openTreeShakeConfig(context.getSource()))
+                            )
+                            .executes(context -> toggleTreeShake(context.getSource()))
+            );
+
+            // 2. /blockplace command
             event.getDispatcher().register(
                     Commands.literal("blockplace")
                             .then(Commands.literal("toggle")
                                     .executes(context -> toggleAnimation(context.getSource()))
                             )
+                            .then(Commands.literal("config")
+                                    .executes(context -> openTreeShakeConfig(context.getSource()))
+                            )
+                            .then(Commands.literal("gui")
+                                    .executes(context -> openTreeShakeConfig(context.getSource()))
+                            )
                             .then(Commands.literal("tree")
+                                    .then(Commands.literal("config")
+                                            .executes(context -> openTreeShakeConfig(context.getSource()))
+                                    )
                                     .then(Commands.argument("value", StringArgumentType.word())
                                             .suggests((context, builder) -> {
                                                 builder.suggest("on");
                                                 builder.suggest("off");
                                                 builder.suggest("toggle");
+                                                builder.suggest("config");
                                                 return builder.buildFuture();
                                             })
                                             .executes(context -> {
@@ -83,70 +119,55 @@ public class BlockPlaceNeoForge {
                                     )
                                     .executes(context -> showCurrentStyle(context.getSource()))
                             )
-                            .then(Commands.argument("value", StringArgumentType.word())
-                                    .suggests((context, builder) -> {
-                                        for (BlockPlaceConfig.AnimationStyle s : BlockPlaceConfig.AnimationStyle.values()) {
-                                            builder.suggest(s.name().toLowerCase());
-                                        }
-                                        builder.suggest("vanilla");
-                                        builder.suggest("toggle");
-                                        builder.suggest("tree");
-                                        return builder.buildFuture();
-                                    })
-                                    .executes(context -> {
-                                        String val = StringArgumentType.getString(context, "value");
-                                        if (val.equalsIgnoreCase("toggle")) {
-                                            return toggleAnimation(context.getSource());
-                                        }
-                                        if (val.equalsIgnoreCase("tree")) {
-                                            return toggleTreeShake(context.getSource());
-                                        }
-                                        return applyStyleCommand(context.getSource(), val);
-                                    })
-                            )
                             .executes(context -> showCurrentStyle(context.getSource()))
             );
+        }
+
+        private static int openTreeShakeConfig(CommandSourceStack source) {
+            Minecraft client = Minecraft.getInstance();
+            client.execute(() -> client.setScreenAndShow(new TreeShakeConfigScreen(client.gui.screen())));
+            return 1;
         }
 
         private static int toggleAnimation(CommandSourceStack source) {
             if (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) {
                 BlockPlaceConfig.style = BlockPlaceConfig.AnimationStyle.ROTATING;
                 BlockPlaceConfig.save();
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fAnimations §aENABLED §f(style: §erotating§f)"), false);
+                source.sendSystemMessage(Component.literal("§a[Block Place] §fPlacement animations §aENABLED §f(style: §erotating§f)"));
             } else {
                 BlockPlaceConfig.style = BlockPlaceConfig.AnimationStyle.NONE;
                 BlockPlaceConfig.save();
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fAnimations §cDISABLED §7(pure vanilla placement)"), false);
+                source.sendSystemMessage(Component.literal("§a[Block Place] §fPlacement animations §cDISABLED §7(pure vanilla placement)"));
             }
             return 1;
         }
 
         private static int toggleTreeShake(CommandSourceStack source) {
-            BlockPlaceConfig.enableTreeShake = !BlockPlaceConfig.enableTreeShake;
+            return setTreeShake(source, !BlockPlaceConfig.enableTreeShake);
+        }
+
+        private static int setTreeShake(CommandSourceStack source, boolean enable) {
+            BlockPlaceConfig.enableTreeShake = enable;
             BlockPlaceConfig.save();
             if (BlockPlaceConfig.enableTreeShake) {
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fCartoon Tree Shake animations §aENABLED"), false);
+                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §aENABLED §7(use §f/treeshake config§7 for UI)"));
             } else {
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fCartoon Tree Shake animations §cDISABLED"), false);
+                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §cDISABLED"));
             }
             return 1;
         }
 
         private static int applyTreeCommand(CommandSourceStack source, String val) {
             if (val.equalsIgnoreCase("on") || val.equalsIgnoreCase("true") || val.equalsIgnoreCase("enable")) {
-                BlockPlaceConfig.enableTreeShake = true;
-                BlockPlaceConfig.save();
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fCartoon Tree Shake animations §aENABLED"), false);
-                return 1;
+                return setTreeShake(source, true);
             } else if (val.equalsIgnoreCase("off") || val.equalsIgnoreCase("false") || val.equalsIgnoreCase("disable")) {
-                BlockPlaceConfig.enableTreeShake = false;
-                BlockPlaceConfig.save();
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fCartoon Tree Shake animations §cDISABLED"), false);
-                return 1;
+                return setTreeShake(source, false);
             } else if (val.equalsIgnoreCase("toggle")) {
                 return toggleTreeShake(source);
+            } else if (val.equalsIgnoreCase("config") || val.equalsIgnoreCase("gui") || val.equalsIgnoreCase("menu")) {
+                return openTreeShakeConfig(source);
             } else {
-                source.sendFailure(Component.literal("§c[Block Place] §fUnknown option: '§c" + val + "§f'. Use: §eon, off, toggle"));
+                source.sendFailure(Component.literal("§c[Tree Shake] §fUnknown option: '§c" + val + "§f'. Use: §eon, off, toggle, config"));
                 return 0;
             }
         }
@@ -154,7 +175,7 @@ public class BlockPlaceNeoForge {
         private static int applyStyleCommand(CommandSourceStack source, String val) {
             if (BlockPlaceConfig.setStyle(val)) {
                 String name = (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) ? "none (vanilla placement)" : BlockPlaceConfig.style.name().toLowerCase();
-                source.sendSuccess(() -> Component.literal("§a[Block Place] §fAnimation style set to: §e" + name), false);
+                source.sendSystemMessage(Component.literal("§a[Block Place] §fAnimation style set to: §e" + name));
                 return 1;
             } else {
                 source.sendFailure(Component.literal("§c[Block Place] §fUnknown style: '§c" + val + "§f'. Available: §esmooth, rotating, pop, drop, spiral, expand, spring, none"));
@@ -165,8 +186,8 @@ public class BlockPlaceNeoForge {
         private static int showCurrentStyle(CommandSourceStack source) {
             String name = (BlockPlaceConfig.style == BlockPlaceConfig.AnimationStyle.NONE) ? "none (vanilla)" : BlockPlaceConfig.style.name().toLowerCase();
             String treeStatus = BlockPlaceConfig.enableTreeShake ? "§aenabled" : "§cdisabled";
-            source.sendSuccess(() -> Component.literal("§a[Block Place] §fPlacement style: §e" + name + " §7| Tree shake: " + treeStatus), false);
-            source.sendSuccess(() -> Component.literal("§7Use §f/blockplace style <name>§7, §f/blockplace toggle§7, or §f/blockplace tree"), false);
+            source.sendSystemMessage(Component.literal("§a[Block Place] §fPlacement style: §e" + name + " §7| Tree shake: " + treeStatus));
+            source.sendSystemMessage(Component.literal("§7Use §f/treeshake toggle§7, §f/treeshake config§7, or §f/blockplace style <name>"));
             return 1;
         }
     }

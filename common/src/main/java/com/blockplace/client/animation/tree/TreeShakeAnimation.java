@@ -153,24 +153,23 @@ public class TreeShakeAnimation {
             double relZ = blockCenter.z - rootCenter.z;
 
             float h = entry.heightFraction();
+            boolean isGroundedLog = !entry.isLeaf() && (!structure.contains(pos.below()) || h <= 0.001f);
 
-            // Stem & canopy sway progression:
-            // Base has 28% cartoon rubbery give; height adds up to 100%
-            float baseFactor = 0.28f;
-            float heightFactor = 0.72f * (float) Math.pow(h, 0.85);
-            float swayFactor = baseFactor + heightFactor;
+            // Ground anchor factor: ground-touching trunk logs stay 100% anchored with zero gap underneath
+            float anchor = isGroundedLog ? 0.0f : (float) Math.pow(Math.min(1.0f, h), 1.25);
+            float swayFactor = isGroundedLog ? 0.0f : (float) Math.pow(Math.min(1.0f, h), 1.10);
 
-            // Direct punch impact shockwave at the punched height
+            // Direct punch impact shockwave at the punched height, anchored at ground
             float punchDistY = Math.abs(pos.getY() - hitPos.getY());
             float impactRecoil = 0.0f;
-            if (p < 1.0f) {
-                impactRecoil = (float) Math.exp(-0.35f * punchDistY) * (1.0f - p) * 0.12f * (float) Math.sin(p * 8.0 * Math.PI);
+            if (p < 1.0f && anchor > 0.0f) {
+                impactRecoil = (float) Math.exp(-0.35f * punchDistY) * (1.0f - p) * 0.12f * (float) Math.sin(p * 8.0 * Math.PI) * anchor;
             }
 
-            // High-frequency ripple traveling up the stem / trunk
+            // High-frequency ripple traveling up the stem / trunk, anchored at ground
             float ripple = 0.0f;
-            if (p < 1.0f) {
-                ripple = (float) Math.sin(p * 7.0 * Math.PI - relY * 0.65) * (1.0f - p) * 0.045f;
+            if (p < 1.0f && anchor > 0.0f) {
+                ripple = (float) Math.sin(p * 7.0 * Math.PI - relY * 0.65) * (1.0f - p) * 0.045f * anchor;
             }
 
             // Continuous trunk curvature around tree base anchor
@@ -183,7 +182,7 @@ public class TreeShakeAnimation {
 
             double swayX = punchDir.x * mainSway + crossDir.x * crossSway + tiltX;
             double swayZ = punchDir.z * mainSway + crossDir.z * crossSway + tiltZ;
-            double swayY = tiltY;
+            double swayY = tiltY * anchor;
 
             double leafFlutterX = 0;
             double leafFlutterY = 0;
@@ -208,8 +207,8 @@ public class TreeShakeAnimation {
 
             poseStack.translate(renderX, renderY, renderZ);
 
-            if (tiltAngleRad != 0.0f) {
-                float blockTiltDeg = (float) Math.toDegrees(tiltAngleRad) * swayFactor;
+            if (tiltAngleRad != 0.0f && anchor > 0.0f) {
+                float blockTiltDeg = (float) Math.toDegrees(tiltAngleRad) * anchor;
                 Quaternionf tiltQuat = new Quaternionf().rotationAxis(
                         (float) Math.toRadians(blockTiltDeg),
                         (float) crossDir.x,

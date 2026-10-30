@@ -61,40 +61,19 @@ public class TreeDetector {
      */
     public static TreeStructure findTree(ClientLevel level, BlockPos startPos) {
         BlockState startState = level.getBlockState(startPos);
-        boolean isStem = isStemOrLog(startState);
-        boolean isFoliage = isFoliageOrLeaves(startState);
-
-        if (!isStem && !isFoliage) {
-            return null;
+        if (!isStemOrLog(startState)) {
+            return null; // Wooden blocks ONLY
         }
 
         Set<BlockPos> foundLogs = new HashSet<>();
         Set<BlockPos> foundLeaves = new HashSet<>();
 
-        if (isStem) {
-            // Player punched the stem / trunk directly
-            collectStemLogs(level, startPos, foundLogs);
-            if (foundLogs.isEmpty()) {
-                return null;
-            }
-            collectCanopyLeaves(level, foundLogs, foundLeaves);
-        } else {
-            // Player punched a leaf / foliage block (e.g. canopy hanging down)
-            // First locate the connected stem / trunk of this tree
-            BlockPos stemSeed = findStemSeedFromFoliage(level, startPos);
-
-            if (stemSeed != null) {
-                // Collect entire stem from ground root to top branches
-                collectStemLogs(level, stemSeed, foundLogs);
-                // Collect all canopy leaves attached to this stem
-                collectCanopyLeaves(level, foundLogs, foundLeaves);
-                // Also ensure the initial punched leaf cluster is included
-                collectFoliageCluster(level, startPos, foundLeaves);
-            } else {
-                // Standalone foliage hedge with no stem within reach
-                collectFoliageCluster(level, startPos, foundLeaves);
-            }
+        // Collect connected stem logs and crown canopy
+        collectStemLogs(level, startPos, foundLogs);
+        if (foundLogs.isEmpty()) {
+            return null;
         }
+        collectCanopyLeaves(level, foundLogs, foundLeaves);
 
         // Validate: if it's a huge wooden building with zero leaves, don't shake it
         if (foundLeaves.isEmpty() && foundLogs.size() > 8) {
