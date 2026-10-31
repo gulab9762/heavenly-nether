@@ -1,6 +1,6 @@
-package com.blockplace.client.animation.tree;
+package com.treeshake.client.animation.tree;
 
-import com.blockplace.client.config.BlockPlaceConfig;
+import com.treeshake.client.config.TreeShakeConfig;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.MovingBlockRenderState;
 import net.minecraft.core.BlockPos;
@@ -41,7 +41,7 @@ public class TreeDetector {
         WHITELISTED_BLOCKS.clear();
         WHITELISTED_TAGS.clear();
 
-        for (String entry : BlockPlaceConfig.shakableBlocksWhitelist) {
+        for (String entry : TreeShakeConfig.shakableBlocksWhitelist) {
             String trimmed = entry.trim();
             if (trimmed.isEmpty()) continue;
             if (trimmed.startsWith("#")) {

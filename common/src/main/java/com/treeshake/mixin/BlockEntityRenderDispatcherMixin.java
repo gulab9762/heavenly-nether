@@ -1,6 +1,6 @@
-package com.blockplace.mixin;
+package com.treeshake.mixin;
 
-import com.blockplace.client.animation.tree.TreeShakeManager;
+import com.treeshake.client.animation.tree.TreeShakeManager;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -18,7 +18,7 @@ public abstract class BlockEntityRenderDispatcherMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private <E extends BlockEntity, S extends BlockEntityRenderState> void blockplace$hideBlockEntity(
+    private <E extends BlockEntity, S extends BlockEntityRenderState> void treeshake$hideBlockEntity(
             E blockEntity,
             float partialTick,
             ModelFeatureRenderer.CrumblingOverlay crumblingOverlay,

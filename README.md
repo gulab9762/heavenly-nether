@@ -32,7 +32,6 @@ A client-side visual mod for **Minecraft 26.3** (Fabric & NeoForge) that adds de
 - `/treeshake` or `/treeshake toggle`: Toggles tree shake animations on/off.
 - `/treeshake on|off`: Explicitly enables or disables tree shaking.
 - `/treeshake config` (or `/treeshake gui`, `/treeshake menu`): Opens the in-game Configuration Screen.
-- `/blockplace tree`: Command alias for backwards compatibility.
 
 ---
 

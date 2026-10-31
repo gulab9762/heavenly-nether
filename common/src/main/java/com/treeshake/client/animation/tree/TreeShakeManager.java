@@ -1,6 +1,6 @@
-package com.blockplace.client.animation.tree;
+package com.treeshake.client.animation.tree;
 
-import com.blockplace.client.config.BlockPlaceConfig;
+import com.treeshake.client.config.TreeShakeConfig;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -54,7 +54,7 @@ public class TreeShakeManager {
      * Only triggers if right-clicking with an empty hand and the block matches the shakable whitelist.
      */
     public static void onRightClickBlock(ClientLevel level, Player player, InteractionHand hand, BlockPos pos, Direction direction) {
-        if (!BlockPlaceConfig.enableTreeShake) {
+        if (!TreeShakeConfig.enableTreeShake) {
             return;
         }
 
@@ -75,7 +75,7 @@ public class TreeShakeManager {
      * Called when the player punches (left-clicks) a block.
      */
     public static void onPunchBlock(ClientLevel level, Player player, BlockPos pos, Direction direction) {
-        if (!BlockPlaceConfig.enableTreeShake) {
+        if (!TreeShakeConfig.enableTreeShake) {
             return;
         }
 
@@ -127,7 +127,7 @@ public class TreeShakeManager {
         });
 
         // Hide all tree blocks from baked chunk rendering with failsafe expiration
-        long expiration = currentClientTick + BlockPlaceConfig.treeShakeDurationTicks + 14;
+        long expiration = currentClientTick + TreeShakeConfig.treeShakeDurationTicks + 14;
         for (BlockPos treePos : structure.getBlockPositions()) {
             HIDDEN_BLOCKS.put(treePos, new HiddenBlockEntry(structure.getRootPos(), expiration));
         }
@@ -145,7 +145,7 @@ public class TreeShakeManager {
      * Called continuously while holding attack on a block.
      */
     public static void onContinuousPunch(ClientLevel level, Player player, BlockPos pos, Direction direction) {
-        if (!BlockPlaceConfig.enableTreeShake) {
+        if (!TreeShakeConfig.enableTreeShake) {
             return;
         }
 
@@ -342,7 +342,7 @@ public class TreeShakeManager {
         RandomSource random = level.getRandom();
 
         // 1. Wood punch impact particles
-        if (BlockPlaceConfig.enableTreeParticles && hitState.isSolid()) {
+        if (TreeShakeConfig.enableTreeParticles && hitState.isSolid()) {
             Vec3 hitCenter = Vec3.atCenterOf(hitPos);
             int count = isFullPunch ? 6 : 3;
             for (int i = 0; i < count; i++) {
@@ -360,12 +360,12 @@ public class TreeShakeManager {
         }
 
         // 2. Canopy leaf flutter particles
-        if (BlockPlaceConfig.enableTreeParticles) {
+        if (TreeShakeConfig.enableTreeParticles) {
             spawnLeavesBurst(level, structure, isFullPunch ? 5 : 2);
         }
 
         // 3. Audio feedback: wood impact + gentle leaves rustle
-        if (BlockPlaceConfig.enableTreeSound) {
+        if (TreeShakeConfig.enableTreeSound) {
             float pitchOffset = random.nextFloat() * 0.2f;
             level.playLocalSound(
                     hitPos.getX() + 0.5,

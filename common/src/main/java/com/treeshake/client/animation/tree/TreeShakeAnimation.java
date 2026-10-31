@@ -1,6 +1,6 @@
-package com.blockplace.client.animation.tree;
+package com.treeshake.client.animation.tree;
 
-import com.blockplace.client.config.BlockPlaceConfig;
+import com.treeshake.client.config.TreeShakeConfig;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -32,7 +32,7 @@ public class TreeShakeAnimation {
 
     public TreeShakeAnimation(ClientLevel level, TreeStructure structure, Vec3 punchDir) {
         this.structure = structure;
-        this.maxDurationTicks = Math.max(8, BlockPlaceConfig.treeShakeDurationTicks);
+        this.maxDurationTicks = Math.max(8, TreeShakeConfig.treeShakeDurationTicks);
 
         setPunchDirection(punchDir);
     }
@@ -123,7 +123,7 @@ public class TreeShakeAnimation {
         float stretchXZ = 1.0f;
 
         if (p < 1.0f) {
-            float decay = (1.0f - p) * (1.0f - p) * impulseStrength * BlockPlaceConfig.treeShakeIntensity;
+            float decay = (1.0f - p) * (1.0f - p) * impulseStrength * TreeShakeConfig.treeShakeIntensity;
 
             // Damped spring oscillation: 2 full back-and-forth cartoon bounces
             wobbleMain = (float) Math.sin(p * 4.0 * Math.PI) * decay;
@@ -132,11 +132,11 @@ public class TreeShakeAnimation {
             wobbleCross = (float) (Math.sin(p * 3.0 * Math.PI) * Math.cos(p * 2.0 * Math.PI)) * decay * 0.38f;
 
             // Unified tilt angle around root anchor
-            tiltAngleRad = (float) Math.toRadians(wobbleMain * 5.2f * BlockPlaceConfig.treeShakeIntensity);
+            tiltAngleRad = (float) Math.toRadians(wobbleMain * 5.2f * TreeShakeConfig.treeShakeIntensity);
 
             // Cartoon squash and stretch: compresses vertically on impact, stretches on rebound
-            squashY = 1.0f - 0.11f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
-            stretchXZ = 1.0f + 0.055f * Math.abs(wobbleMain) * BlockPlaceConfig.treeShakeIntensity;
+            squashY = 1.0f - 0.11f * Math.abs(wobbleMain) * TreeShakeConfig.treeShakeIntensity;
+            stretchXZ = 1.0f + 0.055f * Math.abs(wobbleMain) * TreeShakeConfig.treeShakeIntensity;
         }
 
         Vec3 cameraPos = levelRenderState.cameraRenderState.pos;

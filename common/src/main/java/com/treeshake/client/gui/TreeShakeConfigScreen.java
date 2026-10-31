@@ -1,6 +1,6 @@
-package com.blockplace.client.gui;
+package com.treeshake.client.gui;
 
-import com.blockplace.client.config.BlockPlaceConfig;
+import com.treeshake.client.config.TreeShakeConfig;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
@@ -34,20 +34,20 @@ public class TreeShakeConfigScreen extends Screen {
         addRenderableWidget(Button.builder(
                 getShakeToggleText(),
                 button -> {
-                    BlockPlaceConfig.enableTreeShake = !BlockPlaceConfig.enableTreeShake;
-                    BlockPlaceConfig.save();
+                    TreeShakeConfig.enableTreeShake = !TreeShakeConfig.enableTreeShake;
+                    TreeShakeConfig.save();
                     button.setMessage(getShakeToggleText());
                 }
         ).bounds(centerX - buttonWidth / 2, startY, buttonWidth, buttonHeight).build());
 
         // 2. Shake Intensity Slider (0.05x to 2.0x, default 0.25x)
-        double initialIntensityNorm = (BlockPlaceConfig.treeShakeIntensity - 0.05f) / 1.95f;
+        double initialIntensityNorm = (TreeShakeConfig.treeShakeIntensity - 0.05f) / 1.95f;
         addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2,
                 startY + spacing,
                 buttonWidth,
                 buttonHeight,
-                getIntensityText(BlockPlaceConfig.treeShakeIntensity),
+                getIntensityText(TreeShakeConfig.treeShakeIntensity),
                 Math.max(0.0, Math.min(1.0, initialIntensityNorm))
         ) {
             @Override
@@ -58,19 +58,19 @@ public class TreeShakeConfigScreen extends Screen {
 
             @Override
             protected void applyValue() {
-                BlockPlaceConfig.treeShakeIntensity = 0.05f + (float) this.value * 1.95f;
-                BlockPlaceConfig.save();
+                TreeShakeConfig.treeShakeIntensity = 0.05f + (float) this.value * 1.95f;
+                TreeShakeConfig.save();
             }
         });
 
         // 3. Shake Duration Slider (6 to 30 ticks)
-        double initialDurationNorm = (BlockPlaceConfig.treeShakeDurationTicks - 6) / 24.0;
+        double initialDurationNorm = (TreeShakeConfig.treeShakeDurationTicks - 6) / 24.0;
         addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2,
                 startY + spacing * 2,
                 buttonWidth,
                 buttonHeight,
-                getDurationText(BlockPlaceConfig.treeShakeDurationTicks),
+                getDurationText(TreeShakeConfig.treeShakeDurationTicks),
                 Math.max(0.0, Math.min(1.0, initialDurationNorm))
         ) {
             @Override
@@ -81,8 +81,8 @@ public class TreeShakeConfigScreen extends Screen {
 
             @Override
             protected void applyValue() {
-                BlockPlaceConfig.treeShakeDurationTicks = 6 + (int) Math.round(this.value * 24.0);
-                BlockPlaceConfig.save();
+                TreeShakeConfig.treeShakeDurationTicks = 6 + (int) Math.round(this.value * 24.0);
+                TreeShakeConfig.save();
             }
         });
 
@@ -90,8 +90,8 @@ public class TreeShakeConfigScreen extends Screen {
         addRenderableWidget(Button.builder(
                 getParticlesText(),
                 button -> {
-                    BlockPlaceConfig.enableTreeParticles = !BlockPlaceConfig.enableTreeParticles;
-                    BlockPlaceConfig.save();
+                    TreeShakeConfig.enableTreeParticles = !TreeShakeConfig.enableTreeParticles;
+                    TreeShakeConfig.save();
                     button.setMessage(getParticlesText());
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 3, buttonWidth, buttonHeight).build());
@@ -100,8 +100,8 @@ public class TreeShakeConfigScreen extends Screen {
         addRenderableWidget(Button.builder(
                 getSoundText(),
                 button -> {
-                    BlockPlaceConfig.enableTreeSound = !BlockPlaceConfig.enableTreeSound;
-                    BlockPlaceConfig.save();
+                    TreeShakeConfig.enableTreeSound = !TreeShakeConfig.enableTreeSound;
+                    TreeShakeConfig.save();
                     button.setMessage(getSoundText());
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 4, buttonWidth, buttonHeight).build());
@@ -110,8 +110,8 @@ public class TreeShakeConfigScreen extends Screen {
         addRenderableWidget(Button.builder(
                 getWhitelistButtonText(),
                 button -> {
-                    BlockPlaceConfig.resetWhitelistToDefaults();
-                    BlockPlaceConfig.save();
+                    TreeShakeConfig.resetWhitelistToDefaults();
+                    TreeShakeConfig.save();
                     button.setMessage(getWhitelistButtonText());
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 5, buttonWidth, buttonHeight).build());
@@ -120,13 +120,13 @@ public class TreeShakeConfigScreen extends Screen {
         addRenderableWidget(Button.builder(
                 Component.literal("Reset to Defaults (0.25x)"),
                 button -> {
-                    BlockPlaceConfig.enableTreeShake = true;
-                    BlockPlaceConfig.treeShakeIntensity = 0.25f;
-                    BlockPlaceConfig.treeShakeDurationTicks = 14;
-                    BlockPlaceConfig.enableTreeParticles = true;
-                    BlockPlaceConfig.enableTreeSound = true;
-                    BlockPlaceConfig.resetWhitelistToDefaults();
-                    BlockPlaceConfig.save();
+                    TreeShakeConfig.enableTreeShake = true;
+                    TreeShakeConfig.treeShakeIntensity = 0.25f;
+                    TreeShakeConfig.treeShakeDurationTicks = 14;
+                    TreeShakeConfig.enableTreeParticles = true;
+                    TreeShakeConfig.enableTreeSound = true;
+                    TreeShakeConfig.resetWhitelistToDefaults();
+                    TreeShakeConfig.save();
                     this.rebuildWidgets();
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 6, buttonWidth, buttonHeight).build());
@@ -139,11 +139,11 @@ public class TreeShakeConfigScreen extends Screen {
     }
 
     private Component getWhitelistButtonText() {
-        return Component.literal("Shakable Whitelist: " + BlockPlaceConfig.shakableBlocksWhitelist.size() + " types (Click: Reset)");
+        return Component.literal("Shakable Whitelist: " + TreeShakeConfig.shakableBlocksWhitelist.size() + " types (Click: Reset)");
     }
 
     private Component getShakeToggleText() {
-        return Component.literal("Tree Shake: " + (BlockPlaceConfig.enableTreeShake ? "ENABLED" : "DISABLED"));
+        return Component.literal("Tree Shake: " + (TreeShakeConfig.enableTreeShake ? "ENABLED" : "DISABLED"));
     }
 
     private Component getIntensityText(float intensity) {
@@ -155,11 +155,11 @@ public class TreeShakeConfigScreen extends Screen {
     }
 
     private Component getParticlesText() {
-        return Component.literal("Tree Particles: " + (BlockPlaceConfig.enableTreeParticles ? "ON" : "OFF"));
+        return Component.literal("Tree Particles: " + (TreeShakeConfig.enableTreeParticles ? "ON" : "OFF"));
     }
 
     private Component getSoundText() {
-        return Component.literal("Tree Sound: " + (BlockPlaceConfig.enableTreeSound ? "ON" : "OFF"));
+        return Component.literal("Tree Sound: " + (TreeShakeConfig.enableTreeSound ? "ON" : "OFF"));
     }
 
     @Override
@@ -172,7 +172,7 @@ public class TreeShakeConfigScreen extends Screen {
 
     @Override
     public void onClose() {
-        BlockPlaceConfig.save();
+        TreeShakeConfig.save();
         if (this.parent != null && this.minecraft != null) {
             this.minecraft.setScreenAndShow(this.parent);
         } else {

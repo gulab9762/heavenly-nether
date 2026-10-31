@@ -1,6 +1,6 @@
-package com.blockplace.mixin;
+package com.treeshake.mixin;
 
-import com.blockplace.client.animation.tree.TreeShakeManager;
+import com.treeshake.client.animation.tree.TreeShakeManager;
 import net.minecraft.client.renderer.chunk.RenderSectionRegion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -17,7 +17,7 @@ public abstract class RenderSectionRegionMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void blockplace$getHiddenBlockState(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
+    private void treeshake$getHiddenBlockState(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
         BlockState hiddenTreeState = TreeShakeManager.getHiddenBlockReplacedState(pos);
         if (hiddenTreeState != null) {
             cir.setReturnValue(hiddenTreeState);

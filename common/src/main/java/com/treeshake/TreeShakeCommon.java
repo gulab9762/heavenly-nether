@@ -1,6 +1,6 @@
-package com.blockplace;
+package com.treeshake;
 
-public class BlockPlaceCommon {
+public class TreeShakeCommon {
     public static void init() {
         Constants.LOG.info("Initializing {}", Constants.MOD_NAME);
     }

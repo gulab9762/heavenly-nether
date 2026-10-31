@@ -1,4 +1,4 @@
-package com.blockplace.client.animation.tree;
+package com.treeshake.client.animation.tree;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;

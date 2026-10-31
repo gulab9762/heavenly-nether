@@ -1,6 +1,6 @@
-package com.blockplace.mixin;
+package com.treeshake.mixin;
 
-import com.blockplace.client.animation.tree.TreeShakeManager;
+import com.treeshake.client.animation.tree.TreeShakeManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -27,7 +27,7 @@ public abstract class MultiPlayerGameModeMixin {
             method = "startDestroyBlock",
             at = @At("HEAD")
     )
-    private void blockplace$onStartDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+    private void treeshake$onStartDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null) {
             TreeShakeManager.onPunchBlock(this.minecraft.level, this.minecraft.player, pos, direction);
         }
@@ -37,7 +37,7 @@ public abstract class MultiPlayerGameModeMixin {
             method = "continueDestroyBlock",
             at = @At("HEAD")
     )
-    private void blockplace$onContinueDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+    private void treeshake$onContinueDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null) {
             TreeShakeManager.onContinuousPunch(this.minecraft.level, this.minecraft.player, pos, direction);
         }
@@ -47,7 +47,7 @@ public abstract class MultiPlayerGameModeMixin {
             method = "destroyBlock",
             at = @At("HEAD")
     )
-    private void blockplace$onDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+    private void treeshake$onDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null) {
             TreeShakeManager.onBlockDestroyed(this.minecraft.level, pos);
         }
@@ -57,10 +57,9 @@ public abstract class MultiPlayerGameModeMixin {
             method = "useItemOn",
             at = @At("HEAD")
     )
-    private void blockplace$onUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<InteractionResult> cir) {
+    private void treeshake$onUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<InteractionResult> cir) {
         if (this.minecraft.level != null && player != null && hitResult != null) {
             TreeShakeManager.onRightClickBlock(this.minecraft.level, player, hand, hitResult.getBlockPos(), hitResult.getDirection());
         }
     }
 }
-

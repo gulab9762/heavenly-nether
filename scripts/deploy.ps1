@@ -56,12 +56,8 @@ if (-not (Test-Path $MultiMcModsDir)) {
     New-Item -ItemType Directory -Path $MultiMcModsDir -Force | Out-Null
 }
 
-# Remove older versions of blockplace and treeshake in mods directory to prevent duplicate collisions
-Get-ChildItem -Path $MultiMcModsDir -Filter "*blockplace*.jar" | ForEach-Object {
-    Remove-Item -Path $_.FullName -Force
-    Write-Host "[INFO] Removed older mod JAR: $($_.Name)" -ForegroundColor DarkGray
-}
-Get-ChildItem -Path $MultiMcModsDir -Filter "*shake*.jar" | ForEach-Object {
+# Remove older versions of treeshake in mods directory to prevent duplicate collisions
+Get-ChildItem -Path $MultiMcModsDir -Filter "*treeshake*.jar" | ForEach-Object {
     if ($_.Name -ne $jarName) {
         Remove-Item -Path $_.FullName -Force
         Write-Host "[INFO] Removed older mod JAR: $($_.Name)" -ForegroundColor DarkGray

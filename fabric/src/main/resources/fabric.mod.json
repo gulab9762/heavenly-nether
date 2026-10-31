@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.blockplace.fabric.BlockPlaceFabric"
+            "com.treeshake.fabric.TreeShakeFabric"
         ],
         "client": [
-            "com.blockplace.fabric.client.BlockPlaceFabricClient"
+            "com.treeshake.fabric.client.TreeShakeFabricClient"
         ]
     },
     "mixins": [

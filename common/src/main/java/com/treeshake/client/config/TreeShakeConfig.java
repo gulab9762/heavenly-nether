@@ -1,7 +1,7 @@
-package com.blockplace.client.config;
+package com.treeshake.client.config;
 
-import com.blockplace.Constants;
-import com.blockplace.client.animation.tree.TreeDetector;
+import com.treeshake.Constants;
+import com.treeshake.client.animation.tree.TreeDetector;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -17,10 +17,9 @@ import java.util.List;
 /**
  * Client-side configuration for cartoon tree shake animations.
  */
-public class BlockPlaceConfig {
+public class TreeShakeConfig {
 
     private static final Path CONFIG_PATH = Path.of("config", "treeshake.json");
-    private static final Path LEGACY_CONFIG_PATH = Path.of("config", "blockplace.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static final List<String> DEFAULT_WHITELIST = List.of(
@@ -75,13 +74,12 @@ public class BlockPlaceConfig {
     }
 
     /**
-     * Loads saved configuration from config/treeshake.json (or fallback config/blockplace.json).
+     * Loads saved configuration from config/treeshake.json.
      */
     public static void load() {
         try {
-            Path targetPath = Files.exists(CONFIG_PATH) ? CONFIG_PATH : (Files.exists(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null);
-            if (targetPath != null && Files.exists(targetPath)) {
-                String content = Files.readString(targetPath);
+            if (Files.exists(CONFIG_PATH)) {
+                String content = Files.readString(CONFIG_PATH);
                 JsonObject json = JsonParser.parseString(content).getAsJsonObject();
                 if (json.has("enableTreeShake")) enableTreeShake = json.get("enableTreeShake").getAsBoolean();
                 if (json.has("treeShakeIntensity")) treeShakeIntensity = json.get("treeShakeIntensity").getAsFloat();
@@ -99,7 +97,7 @@ public class BlockPlaceConfig {
                 }
 
                 TreeDetector.rebuildWhitelistCache();
-                Constants.LOG.info("Loaded {} config from {}, treeShake={}, intensity={}", Constants.MOD_NAME, targetPath, enableTreeShake, treeShakeIntensity);
+                Constants.LOG.info("Loaded {} config from {}, treeShake={}, intensity={}", Constants.MOD_NAME, CONFIG_PATH, enableTreeShake, treeShakeIntensity);
             } else {
                 save();
             }
