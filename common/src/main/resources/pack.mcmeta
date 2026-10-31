@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "pack_format": 65,
+    "min_format": 1,
+    "max_format": 200,
+    "description": "${description}"
+  }
+}
