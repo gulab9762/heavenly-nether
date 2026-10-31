@@ -2,14 +2,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Minecraft: Build and Deploy (Fabric)",
+            "label": "Minecraft: Rebuild and Deploy Universal JAR",
             "type": "shell",
             "command": "powershell",
             "args": [
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                ".\\gradlew.bat buildFabric; if ($LASTEXITCODE -eq 0) { .\\scripts\\deploy.ps1 -Loader fabric }"
+                ".\\gradlew.bat clean universalJar; if ($LASTEXITCODE -eq 0) { .\\scripts\\deploy.ps1 -Loader universal }"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -29,9 +29,84 @@
             }
         },
         {
+            "label": "Minecraft: Rebuild Universal JAR",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                ".\\gradlew.bat clean universalJar"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Minecraft: Build Universal JAR",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                ".\\gradlew.bat universalJar; if ($LASTEXITCODE -eq 0) { .\\scripts\\deploy.ps1 -Loader universal }"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Minecraft: Build and Deploy (Fabric)",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                ".\\gradlew.bat buildFabric; if ($LASTEXITCODE -eq 0) { .\\scripts\\deploy.ps1 -Loader fabric }"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
             "label": "Minecraft: Start Fabric Client",
             "type": "shell",
             "command": "./gradlew",
+            "windows": {
+                "command": ".\\gradlew.bat"
+            },
             "args": [
                 ":fabric:runClient"
             ],
@@ -114,7 +189,7 @@
                 "-File",
                 ".\\scripts\\deploy.ps1",
                 "-Loader",
-                "fabric"
+                "universal"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -129,22 +204,6 @@
                 "showReuseMessage": true,
                 "clear": false
             }
-        },
-        {
-            "label": "Minecraft: Build Fabric Mod",
-            "type": "shell",
-            "command": "./gradlew",
-            "windows": {
-                "command": ".\\gradlew.bat"
-            },
-            "args": [
-                "buildFabric"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "problemMatcher": []
         },
         {
             "label": "Minecraft: Build All Mods",
