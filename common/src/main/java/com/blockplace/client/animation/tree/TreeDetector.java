@@ -116,6 +116,11 @@ public class TreeDetector {
         }
         collectCanopyLeaves(level, foundLogs, foundLeaves);
 
+        // Do not shake if the tree size is only 1 (e.g. single standalone placed log)
+        if (foundLogs.size() + foundLeaves.size() <= 1) {
+            return null;
+        }
+
         // Validate: if it's a huge wooden building with zero leaves, don't shake it
         if (foundLeaves.isEmpty() && foundLogs.size() > 8) {
             return null;
@@ -211,7 +216,7 @@ public class TreeDetector {
             entries.add(new TreeBlockEntry(pos, state, true, heightFraction, radialDist, seed, renderState));
         }
 
-        if (entries.isEmpty()) {
+        if (entries.size() <= 1) {
             return null;
         }
 

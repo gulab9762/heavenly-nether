@@ -13,6 +13,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -50,10 +51,15 @@ public class TreeShakeManager {
 
     /**
      * Called when the player right-clicks (interacts with) a block.
-     * Only triggers if the block matches the shakable whitelist.
+     * Only triggers if right-clicking with an empty hand and the block matches the shakable whitelist.
      */
-    public static void onRightClickBlock(ClientLevel level, Player player, BlockPos pos, Direction direction) {
+    public static void onRightClickBlock(ClientLevel level, Player player, InteractionHand hand, BlockPos pos, Direction direction) {
         if (!BlockPlaceConfig.enableTreeShake) {
+            return;
+        }
+
+        // Do not shake if right-clicked with a non-empty hand (e.g. holding blocks, tools, items)
+        if (player == null || !player.getItemInHand(hand).isEmpty() || !player.getMainHandItem().isEmpty()) {
             return;
         }
 
@@ -178,7 +184,7 @@ public class TreeShakeManager {
 
                 // If a structural trunk log was broken, cancel the entire tree animation
                 // and restore all remaining blocks to chunk rendering immediately
-                if (wasLog || anim.getStructure().isEmpty()) {
+                if (wasLog || anim.getStructure().isEmpty() || anim.getStructure().getAllBlocks().size() <= 1) {
                     for (BlockPos treePos : anim.getStructure().getBlockPositions()) {
                         HIDDEN_BLOCKS.remove(treePos);
                     }

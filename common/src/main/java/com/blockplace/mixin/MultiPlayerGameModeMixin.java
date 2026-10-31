@@ -59,7 +59,7 @@ public abstract class MultiPlayerGameModeMixin {
     )
     private void blockplace$onUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<InteractionResult> cir) {
         if (this.minecraft.level != null && player != null && hitResult != null) {
-            TreeShakeManager.onRightClickBlock(this.minecraft.level, player, hitResult.getBlockPos(), hitResult.getDirection());
+            TreeShakeManager.onRightClickBlock(this.minecraft.level, player, hand, hitResult.getBlockPos(), hitResult.getDirection());
         }
     }
 }
