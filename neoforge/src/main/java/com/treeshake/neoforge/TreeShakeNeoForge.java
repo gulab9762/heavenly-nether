@@ -79,9 +79,9 @@ public class TreeShakeNeoForge {
             TreeShakeConfig.enableTreeShake = enable;
             TreeShakeConfig.save();
             if (TreeShakeConfig.enableTreeShake) {
-                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §aENABLED §7(use §f/treeshake config§7 for UI)"));
+                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fTree Shake animations §aENABLED §7(use §f/treeshake config§7 for UI)"));
             } else {
-                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §cDISABLED"));
+                source.sendSystemMessage(Component.literal("§a[Tree Shake] §fTree Shake animations §cDISABLED"));
             }
             return 1;
         }

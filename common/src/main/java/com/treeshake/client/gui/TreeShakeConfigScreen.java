@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
 import java.util.Locale;
 
 /**
- * In-game configuration UI for adjusting cartoon tree punch shake parameters.
+ * In-game configuration UI for adjusting tree punch shake parameters.
  */
 public class TreeShakeConfigScreen extends Screen {
 
@@ -166,7 +166,7 @@ public class TreeShakeConfigScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTicks) {
         this.extractMenuBackground(extractor);
         extractor.centeredText(this.font, this.title, this.width / 2, 16, 0xFFFFFF);
-        extractor.centeredText(this.font, Component.literal("Configure cartoon tree punch wobble & physics"), this.width / 2, 30, 0xAAAAAA);
+        extractor.centeredText(this.font, Component.literal("Configure tree punch wobble & physics"), this.width / 2, 30, 0xAAAAAA);
         super.extractRenderState(extractor, mouseX, mouseY, partialTicks);
     }
 

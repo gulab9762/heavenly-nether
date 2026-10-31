@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
- * Manages the client-side cartoonish wobble, inverse pendulum sway, squash and stretch,
+ * Manages the client-side wobble, inverse pendulum sway, squash and stretch,
  * stem ripples, and foliage flutter for a shaking tree.
  */
 public class TreeShakeAnimation {
@@ -125,7 +125,7 @@ public class TreeShakeAnimation {
         if (p < 1.0f) {
             float decay = (1.0f - p) * (1.0f - p) * impulseStrength * TreeShakeConfig.treeShakeIntensity;
 
-            // Damped spring oscillation: 2 full back-and-forth cartoon bounces
+            // Damped spring oscillation: 2 full back-and-forth organic bounces
             wobbleMain = (float) Math.sin(p * 4.0 * Math.PI) * decay;
 
             // Asymmetric secondary cross-wobble for delightful 3D organic figure-8 jiggle
@@ -134,7 +134,7 @@ public class TreeShakeAnimation {
             // Unified tilt angle around root anchor
             tiltAngleRad = (float) Math.toRadians(wobbleMain * 5.2f * TreeShakeConfig.treeShakeIntensity);
 
-            // Cartoon squash and stretch: compresses vertically on impact, stretches on rebound
+            // Squash and stretch: compresses vertically on impact, stretches on rebound
             squashY = 1.0f - 0.11f * Math.abs(wobbleMain) * TreeShakeConfig.treeShakeIntensity;
             stretchXZ = 1.0f + 0.055f * Math.abs(wobbleMain) * TreeShakeConfig.treeShakeIntensity;
         }

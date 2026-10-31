@@ -1,20 +1,20 @@
 # Tree Shake Animations
 
-A client-side visual mod for **Minecraft 26.3** (Fabric & NeoForge) that adds delightful, cartoonish tree punch shake physics when punching or right-clicking trees and wooden logs.
+A client-side visual mod for **Minecraft 26.3** (Fabric, Forge & NeoForge) that adds delightful tree punch shake physics when punching or right-clicking trees and wooden logs.
 
 ---
 
 ## ✨ Features
 
-### 🌴 Cartoon Tree Shake Physics (Client-Side)
+### 🌴 Tree Shake Physics (Client-Side)
 - **Topological Tree BFS Detection**:
   - Automatically identifies connected tree trunks (`#minecraft:logs`, `#minecraft:warped_stems`, `#minecraft:crimson_stems`, `mushroom_stem`, `bamboo_block`, `mangrove_roots`) and canopy foliage (`#minecraft:leaves`, `#minecraft:wart_blocks`).
   - Distinguishes natural trees and stems from man-made structures like log cabins or bridges.
   - **Wooden Blocks Only**: Punching or right-clicking wooden logs/stems triggers the shake; interacting with loose foliage does not.
-- **Cartoon Spring & Inverse Pendulum Physics**:
+- **Spring & Inverse Pendulum Physics**:
   - **Firm Ground Anchor**: The base log touching the ground stays 100% anchored with zero gap underneath.
   - The trunk bends with height-dependent curvature, swaying along the punch direction with organic 3D cross-wobble figure-8 physics.
-  - **Cartoon Squash & Stretch**: Compresses vertically on punch impact while bulging outwards, stretching tall on spring rebound.
+  - **Squash & Stretch**: Compresses vertically on punch impact while bulging outwards, stretching tall on spring rebound.
 - **Foliage Flutter & Leaf Particles**:
   - Independent high-frequency micro-rustle and breathing scale for each leaf block.
   - Punches cause leaf particles and wood splinters to burst out and float down with gravity.

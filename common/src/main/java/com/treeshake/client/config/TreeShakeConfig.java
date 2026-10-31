@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Client-side configuration for cartoon tree shake animations.
+ * Client-side configuration for tree shake animations.
  */
 public class TreeShakeConfig {
 
@@ -35,7 +35,7 @@ public class TreeShakeConfig {
     );
 
     /**
-     * Whether cartoon tree punch/shake animations are enabled.
+     * Whether tree punch/shake animations are enabled.
      */
     public static boolean enableTreeShake = true;
 
