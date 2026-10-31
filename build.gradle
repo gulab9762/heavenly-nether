@@ -3,10 +3,50 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.147' apply false
 }
 
+tasks.register('universalJar', Jar) {
+    group = 'build'
+    description = 'Builds a single unified universal JAR compatible with both Fabric and NeoForge.'
+    dependsOn ':fabric:jar', ':neoforge:jar'
+
+    archiveBaseName.set("${project.mod_id}-universal")
+    archiveVersion.set("${project.minecraft_version}-${project.version}")
+    destinationDirectory.set(layout.buildDirectory.dir("libs"))
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // 1. Include Fabric outputs (common + fabric classes + fabric.mod.json + icon.png)
+    from(zipTree(project(':fabric').tasks.named('jar').get().archiveFile)) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+
+    // 2. Include NeoForge outputs (neoforge classes + META-INF/neoforge.mods.toml)
+    from(zipTree(project(':neoforge').tasks.named('jar').get().archiveFile)) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+
+    manifest {
+        attributes([
+            'Specification-Title'     : project.mod_name,
+            'Specification-Vendor'    : project.mod_author,
+            'Specification-Version'   : project.version,
+            'Implementation-Title'    : project.mod_name,
+            'Implementation-Version'  : project.version,
+            'Implementation-Vendor'   : project.mod_author,
+            'Fabric-Loom-Remap'       : 'false'
+        ])
+    }
+}
+
+tasks.register('buildUniversal') {
+    group = 'build'
+    description = 'Builds the unified universal JAR.'
+    dependsOn 'universalJar'
+}
+
 tasks.register('buildAllMods') {
     group = 'build'
-    description = 'Builds all supported mod loader JARs.'
-    dependsOn ':fabric:build', ':neoforge:build'
+    description = 'Builds all supported mod loader JARs and the unified universal JAR.'
+    dependsOn ':fabric:build', ':neoforge:build', 'universalJar'
 }
 
 // Fabric Tasks

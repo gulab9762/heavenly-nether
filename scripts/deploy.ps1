@@ -1,5 +1,5 @@
 param (
-    [string]$Loader = "fabric",
+    [string]$Loader = "universal",
     [string]$MultiMcModsDir = "D:\MultiMC\instances\26.3\.minecraft\mods",
     [string]$DownloadsDir = "$env:USERPROFILE\Downloads"
 )
@@ -7,13 +7,17 @@ param (
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Deploying Block Place Mod [$Loader]" -ForegroundColor Cyan
+Write-Host " Deploying Tree Shake Mod [$Loader]" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-$searchPath = if ($Loader -eq "neoforge") { "neoforge\build\libs" } else { "fabric\build\libs" }
+$searchPath = switch ($Loader.ToLower()) {
+    "neoforge" { "neoforge\build\libs" }
+    "fabric"   { "fabric\build\libs" }
+    default    { "build\libs" }
+}
 
 if (-not (Test-Path $searchPath)) {
-    Write-Error "Build output directory not found: $searchPath. Please build the mod first."
+    Write-Error "Build output directory not found: $searchPath. Please run '.\gradlew.bat universalJar' first."
     exit 1
 }
 
@@ -23,7 +27,7 @@ $jar = Get-ChildItem -Path $searchPath -Filter "blockplace-*.jar" |
     Select-Object -First 1
 
 if (-not $jar) {
-    Write-Error "No compiled mod JAR found in $searchPath. Run '.\gradlew.bat buildFabric' first."
+    Write-Error "No compiled mod JAR found in $searchPath. Run '.\gradlew.bat universalJar' first."
     exit 1
 }
 
@@ -42,6 +46,15 @@ if (Test-Path $DownloadsDir) {
 if (-not (Test-Path $MultiMcModsDir)) {
     New-Item -ItemType Directory -Path $MultiMcModsDir -Force | Out-Null
 }
+
+# Remove older versions of blockplace in mods directory to prevent duplicate collisions
+Get-ChildItem -Path $MultiMcModsDir -Filter "blockplace-*.jar" | ForEach-Object {
+    if ($_.Name -ne $jarName) {
+        Remove-Item -Path $_.FullName -Force
+        Write-Host "[INFO] Removed older mod JAR: $($_.Name)" -ForegroundColor DarkGray
+    }
+}
+
 Copy-Item -Path $jar.FullName -Destination $MultiMcModsDir -Force
 Write-Host "[OK] Copied to MultiMC  -> $MultiMcModsDir\$jarName" -ForegroundColor Green
 
