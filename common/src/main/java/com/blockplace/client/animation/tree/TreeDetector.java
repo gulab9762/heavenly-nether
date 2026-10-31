@@ -1,42 +1,83 @@
 package com.blockplace.client.animation.tree;
 
+import com.blockplace.client.config.BlockPlaceConfig;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.MovingBlockRenderState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Fast breadth-first search detector that identifies connected tree stems, trunks,
- * branches, and canopy foliage.
+ * branches, and canopy foliage based on the configurable shakable whitelist.
  */
 public class TreeDetector {
 
-    public static final int MAX_LOGS = 180;
-    public static final int MAX_LEAVES = 400;
-    public static final int MAX_HORIZONTAL_RADIUS = 10;
-    public static final int MAX_VERTICAL_UP = 36;
+    public static final int MAX_LOGS = 300;
+    public static final int MAX_LEAVES = 1000;
+    public static final int MAX_HORIZONTAL_RADIUS = 16;
+    public static final int MAX_VERTICAL_UP = 42;
     public static final int MAX_VERTICAL_DOWN = 32;
-    public static final int MAX_LEAF_DISTANCE = 4;
+    public static final int MAX_LEAF_DISTANCE = 7;
+
+    private static final Set<Identifier> WHITELISTED_BLOCKS = ConcurrentHashMap.newKeySet();
+    private static final Set<TagKey<Block>> WHITELISTED_TAGS = ConcurrentHashMap.newKeySet();
+    private static volatile boolean whitelistInitialized = false;
 
     /**
-     * Checks if a block state represents a tree trunk, stem, or root pillar.
+     * Rebuilds the fast tag and block ID lookup cache from the config whitelist.
+     */
+    public static void rebuildWhitelistCache() {
+        WHITELISTED_BLOCKS.clear();
+        WHITELISTED_TAGS.clear();
+
+        for (String entry : BlockPlaceConfig.shakableBlocksWhitelist) {
+            String trimmed = entry.trim();
+            if (trimmed.isEmpty()) continue;
+            if (trimmed.startsWith("#")) {
+                String tagStr = trimmed.substring(1);
+                Identifier loc = Identifier.tryParse(tagStr);
+                if (loc != null) {
+                    WHITELISTED_TAGS.add(TagKey.create(Registries.BLOCK, loc));
+                }
+            } else {
+                Identifier loc = Identifier.tryParse(trimmed);
+                if (loc != null) {
+                    WHITELISTED_BLOCKS.add(loc);
+                }
+            }
+        }
+        whitelistInitialized = true;
+    }
+
+    /**
+     * Checks if a block state represents a tree trunk, stem, or root pillar
+     * according to the user-configured whitelist.
      */
     public static boolean isStemOrLog(BlockState state) {
         if (state == null) return false;
-        return state.is(BlockTags.LOGS)
-                || state.is(Blocks.MUSHROOM_STEM)
-                || state.is(Blocks.WARPED_STEM)
-                || state.is(Blocks.STRIPPED_WARPED_STEM)
-                || state.is(Blocks.CRIMSON_STEM)
-                || state.is(Blocks.STRIPPED_CRIMSON_STEM)
-                || state.is(Blocks.BAMBOO_BLOCK)
-                || state.is(Blocks.STRIPPED_BAMBOO_BLOCK)
-                || state.is(Blocks.MANGROVE_ROOTS);
+        if (!whitelistInitialized) {
+            rebuildWhitelistCache();
+        }
+
+        for (TagKey<Block> tag : WHITELISTED_TAGS) {
+            if (state.is(tag)) {
+                return true;
+            }
+        }
+
+        Identifier blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        return WHITELISTED_BLOCKS.contains(blockId);
     }
 
     /**

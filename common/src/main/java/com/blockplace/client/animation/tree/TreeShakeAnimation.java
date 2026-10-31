@@ -22,7 +22,7 @@ public class TreeShakeAnimation {
 
     private int ageTicks = 0;
     private final int maxDurationTicks;
-    private final int settleDurationTicks = 3;
+    private final int settleDurationTicks = 6;
 
     private float impulseStrength = 1.0f;
     private int ticksSinceLastPunch = 0;
@@ -35,6 +35,10 @@ public class TreeShakeAnimation {
         this.maxDurationTicks = Math.max(8, BlockPlaceConfig.treeShakeDurationTicks);
 
         setPunchDirection(punchDir);
+    }
+
+    public int getMaxDurationTicks() {
+        return maxDurationTicks;
     }
 
     private void setPunchDirection(Vec3 dir) {

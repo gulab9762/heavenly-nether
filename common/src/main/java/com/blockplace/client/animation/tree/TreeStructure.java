@@ -119,6 +119,13 @@ public class TreeStructure {
         return blockPositions.contains(pos);
     }
 
+    public boolean isLeaf(BlockPos pos) {
+        for (TreeBlockEntry leaf : leaves) {
+            if (leaf.pos().equals(pos)) return true;
+        }
+        return false;
+    }
+
     public void removeBlock(BlockPos pos) {
         if (blockPositions.remove(pos)) {
             allBlocks.removeIf(entry -> entry.pos().equals(pos));

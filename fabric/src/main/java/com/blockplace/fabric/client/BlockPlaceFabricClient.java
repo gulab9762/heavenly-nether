@@ -58,6 +58,12 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
                             .then(ClientCommands.literal("menu")
                                     .executes(context -> openTreeShakeConfig(context.getSource()))
                             )
+                            .then(ClientCommands.literal("whitelist")
+                                    .then(ClientCommands.literal("reset")
+                                            .executes(context -> resetWhitelist(context.getSource()))
+                                    )
+                                    .executes(context -> showWhitelist(context.getSource()))
+                            )
                             .executes(context -> toggleTreeShake(context.getSource()))
             );
 
@@ -111,9 +117,9 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
         BlockPlaceConfig.enableTreeShake = enable;
         BlockPlaceConfig.save();
         if (BlockPlaceConfig.enableTreeShake) {
-            source.sendFeedback(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §aENABLED §7(use §f/treeshake config§7 for UI)"));
+            source.sendFeedback(Component.literal("§a[Tree Shake] §fTree Shake animations §aENABLED §7(use §f/treeshake config§7 for UI)"));
         } else {
-            source.sendFeedback(Component.literal("§a[Tree Shake] §fCartoon Tree Shake animations §cDISABLED"));
+            source.sendFeedback(Component.literal("§a[Tree Shake] §fTree Shake animations §cDISABLED"));
         }
         return 1;
     }
@@ -131,5 +137,20 @@ public class BlockPlaceFabricClient implements ClientModInitializer {
             source.sendError(Component.literal("§c[Tree Shake] §fUnknown option: '§c" + val + "§f'. Use: §eon, off, toggle, config"));
             return 0;
         }
+    }
+
+    private static int showWhitelist(FabricClientCommandSource source) {
+        source.sendFeedback(Component.literal("§a[Tree Shake] §fShakable Blocks Whitelist (" + BlockPlaceConfig.shakableBlocksWhitelist.size() + " items):"));
+        for (String item : BlockPlaceConfig.shakableBlocksWhitelist) {
+            source.sendFeedback(Component.literal("  §7- §e" + item));
+        }
+        return 1;
+    }
+
+    private static int resetWhitelist(FabricClientCommandSource source) {
+        BlockPlaceConfig.resetWhitelistToDefaults();
+        BlockPlaceConfig.save();
+        source.sendFeedback(Component.literal("§a[Tree Shake] §fShakable blocks whitelist reset to defaults."));
+        return 1;
     }
 }

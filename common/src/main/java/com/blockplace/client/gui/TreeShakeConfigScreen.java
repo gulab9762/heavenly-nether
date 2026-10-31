@@ -40,8 +40,8 @@ public class TreeShakeConfigScreen extends Screen {
                 }
         ).bounds(centerX - buttonWidth / 2, startY, buttonWidth, buttonHeight).build());
 
-        // 2. Shake Intensity Slider (0.2x to 2.5x)
-        double initialIntensityNorm = (BlockPlaceConfig.treeShakeIntensity - 0.2f) / 2.3f;
+        // 2. Shake Intensity Slider (0.05x to 2.0x, default 0.25x)
+        double initialIntensityNorm = (BlockPlaceConfig.treeShakeIntensity - 0.05f) / 1.95f;
         addRenderableWidget(new AbstractSliderButton(
                 centerX - buttonWidth / 2,
                 startY + spacing,
@@ -52,13 +52,13 @@ public class TreeShakeConfigScreen extends Screen {
         ) {
             @Override
             protected void updateMessage() {
-                float intensity = 0.2f + (float) this.value * 2.3f;
+                float intensity = 0.05f + (float) this.value * 1.95f;
                 setMessage(getIntensityText(intensity));
             }
 
             @Override
             protected void applyValue() {
-                BlockPlaceConfig.treeShakeIntensity = 0.2f + (float) this.value * 2.3f;
+                BlockPlaceConfig.treeShakeIntensity = 0.05f + (float) this.value * 1.95f;
                 BlockPlaceConfig.save();
             }
         });
@@ -106,25 +106,40 @@ public class TreeShakeConfigScreen extends Screen {
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 4, buttonWidth, buttonHeight).build());
 
-        // 6. Reset to Defaults Button
+        // 6. Shakable Whitelist Button
         addRenderableWidget(Button.builder(
-                Component.literal("Reset to Defaults"),
+                getWhitelistButtonText(),
                 button -> {
-                    BlockPlaceConfig.enableTreeShake = true;
-                    BlockPlaceConfig.treeShakeIntensity = 1.0f;
-                    BlockPlaceConfig.treeShakeDurationTicks = 14;
-                    BlockPlaceConfig.enableTreeParticles = true;
-                    BlockPlaceConfig.enableTreeSound = true;
+                    BlockPlaceConfig.resetWhitelistToDefaults();
                     BlockPlaceConfig.save();
-                    this.rebuildWidgets();
+                    button.setMessage(getWhitelistButtonText());
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 5, buttonWidth, buttonHeight).build());
 
-        // 7. Done Button
+        // 7. Reset to Defaults Button
+        addRenderableWidget(Button.builder(
+                Component.literal("Reset to Defaults (0.25x)"),
+                button -> {
+                    BlockPlaceConfig.enableTreeShake = true;
+                    BlockPlaceConfig.treeShakeIntensity = 0.25f;
+                    BlockPlaceConfig.treeShakeDurationTicks = 14;
+                    BlockPlaceConfig.enableTreeParticles = true;
+                    BlockPlaceConfig.enableTreeSound = true;
+                    BlockPlaceConfig.resetWhitelistToDefaults();
+                    BlockPlaceConfig.save();
+                    this.rebuildWidgets();
+                }
+        ).bounds(centerX - buttonWidth / 2, startY + spacing * 6, buttonWidth, buttonHeight).build());
+
+        // 8. Done Button
         addRenderableWidget(Button.builder(
                 CommonComponents.GUI_DONE,
                 button -> onClose()
-        ).bounds(centerX - buttonWidth / 2, startY + spacing * 6 + 8, buttonWidth, buttonHeight).build());
+        ).bounds(centerX - buttonWidth / 2, startY + spacing * 7 + 6, buttonWidth, buttonHeight).build());
+    }
+
+    private Component getWhitelistButtonText() {
+        return Component.literal("Shakable Whitelist: " + BlockPlaceConfig.shakableBlocksWhitelist.size() + " types (Click: Reset)");
     }
 
     private Component getShakeToggleText() {

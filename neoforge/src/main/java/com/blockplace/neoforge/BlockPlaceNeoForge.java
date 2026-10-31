@@ -66,6 +66,12 @@ public class BlockPlaceNeoForge {
                             .then(Commands.literal("menu")
                                     .executes(context -> openTreeShakeConfig(context.getSource()))
                             )
+                            .then(Commands.literal("whitelist")
+                                    .then(Commands.literal("reset")
+                                            .executes(context -> resetWhitelist(context.getSource()))
+                                    )
+                                    .executes(context -> showWhitelist(context.getSource()))
+                            )
                             .executes(context -> toggleTreeShake(context.getSource()))
             );
 
@@ -138,6 +144,21 @@ public class BlockPlaceNeoForge {
                 source.sendFailure(Component.literal("§c[Tree Shake] §fUnknown option: '§c" + val + "§f'. Use: §eon, off, toggle, config"));
                 return 0;
             }
+        }
+
+        private static int showWhitelist(CommandSourceStack source) {
+            source.sendSystemMessage(Component.literal("§a[Tree Shake] §fShakable Blocks Whitelist (" + BlockPlaceConfig.shakableBlocksWhitelist.size() + " items):"));
+            for (String item : BlockPlaceConfig.shakableBlocksWhitelist) {
+                source.sendSystemMessage(Component.literal("  §7- §e" + item));
+            }
+            return 1;
+        }
+
+        private static int resetWhitelist(CommandSourceStack source) {
+            BlockPlaceConfig.resetWhitelistToDefaults();
+            BlockPlaceConfig.save();
+            source.sendSystemMessage(Component.literal("§a[Tree Shake] §fShakable blocks whitelist reset to defaults."));
+            return 1;
         }
     }
 }

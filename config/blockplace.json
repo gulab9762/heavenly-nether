@@ -1,0 +1,18 @@
+{
+  "enableTreeShake": true,
+  "treeShakeIntensity": 0.25,
+  "treeShakeDurationTicks": 14,
+  "enableTreeParticles": true,
+  "enableTreeSound": true,
+  "shakableBlocksWhitelist": [
+    "#minecraft:logs",
+    "minecraft:mushroom_stem",
+    "minecraft:warped_stem",
+    "minecraft:stripped_warped_stem",
+    "minecraft:crimson_stem",
+    "minecraft:stripped_crimson_stem",
+    "minecraft:bamboo_block",
+    "minecraft:stripped_bamboo_block",
+    "minecraft:mangrove_roots"
+  ]
+}
