@@ -19,7 +19,8 @@ import java.util.List;
  */
 public class BlockPlaceConfig {
 
-    private static final Path CONFIG_PATH = Path.of("config", "blockplace.json");
+    private static final Path CONFIG_PATH = Path.of("config", "treeshake.json");
+    private static final Path LEGACY_CONFIG_PATH = Path.of("config", "blockplace.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static final List<String> DEFAULT_WHITELIST = List.of(
@@ -74,12 +75,13 @@ public class BlockPlaceConfig {
     }
 
     /**
-     * Loads saved configuration from config/blockplace.json.
+     * Loads saved configuration from config/treeshake.json (or fallback config/blockplace.json).
      */
     public static void load() {
         try {
-            if (Files.exists(CONFIG_PATH)) {
-                String content = Files.readString(CONFIG_PATH);
+            Path targetPath = Files.exists(CONFIG_PATH) ? CONFIG_PATH : (Files.exists(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null);
+            if (targetPath != null && Files.exists(targetPath)) {
+                String content = Files.readString(targetPath);
                 JsonObject json = JsonParser.parseString(content).getAsJsonObject();
                 if (json.has("enableTreeShake")) enableTreeShake = json.get("enableTreeShake").getAsBoolean();
                 if (json.has("treeShakeIntensity")) treeShakeIntensity = json.get("treeShakeIntensity").getAsFloat();
@@ -97,17 +99,17 @@ public class BlockPlaceConfig {
                 }
 
                 TreeDetector.rebuildWhitelistCache();
-                Constants.LOG.info("Loaded {} config from {}, treeShake={}, intensity={}", Constants.MOD_NAME, CONFIG_PATH, enableTreeShake, treeShakeIntensity);
+                Constants.LOG.info("Loaded {} config from {}, treeShake={}, intensity={}", Constants.MOD_NAME, targetPath, enableTreeShake, treeShakeIntensity);
             } else {
                 save();
             }
         } catch (Exception e) {
-            Constants.LOG.error("Failed to load config from {}", CONFIG_PATH, e);
+            Constants.LOG.error("Failed to load config", e);
         }
     }
 
     /**
-     * Saves configuration to config/blockplace.json.
+     * Saves configuration to config/treeshake.json.
      */
     public static void save() {
         try {
