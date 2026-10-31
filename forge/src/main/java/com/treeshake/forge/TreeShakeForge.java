@@ -45,9 +45,6 @@ public class TreeShakeForge {
 
             event.getDispatcher().register(
                     Commands.literal("treeshake")
-                            .then(Commands.literal("toggle")
-                                    .executes(context -> toggleTreeShake(context.getSource()))
-                            )
                             .then(Commands.literal("on")
                                     .executes(context -> setTreeShake(context.getSource(), true))
                             )
@@ -55,12 +52,6 @@ public class TreeShakeForge {
                                     .executes(context -> setTreeShake(context.getSource(), false))
                             )
                             .then(Commands.literal("config")
-                                    .executes(context -> openTreeShakeConfig(context.getSource()))
-                            )
-                            .then(Commands.literal("gui")
-                                    .executes(context -> openTreeShakeConfig(context.getSource()))
-                            )
-                            .then(Commands.literal("menu")
                                     .executes(context -> openTreeShakeConfig(context.getSource()))
                             )
                             .then(Commands.literal("whitelist")

@@ -38,9 +38,6 @@ public class TreeShakeFabricClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(
                     ClientCommands.literal("treeshake")
-                            .then(ClientCommands.literal("toggle")
-                                    .executes(context -> toggleTreeShake(context.getSource()))
-                            )
                             .then(ClientCommands.literal("on")
                                     .executes(context -> setTreeShake(context.getSource(), true))
                             )
@@ -48,12 +45,6 @@ public class TreeShakeFabricClient implements ClientModInitializer {
                                     .executes(context -> setTreeShake(context.getSource(), false))
                             )
                             .then(ClientCommands.literal("config")
-                                    .executes(context -> openTreeShakeConfig(context.getSource()))
-                            )
-                            .then(ClientCommands.literal("gui")
-                                    .executes(context -> openTreeShakeConfig(context.getSource()))
-                            )
-                            .then(ClientCommands.literal("menu")
                                     .executes(context -> openTreeShakeConfig(context.getSource()))
                             )
                             .then(ClientCommands.literal("whitelist")
