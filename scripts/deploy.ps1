@@ -13,6 +13,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 $searchPath = switch ($Loader.ToLower()) {
     "neoforge" { "neoforge\build\libs" }
     "fabric"   { "fabric\build\libs" }
+    "forge"    { "forge\build\libs" }
     default    { "build\libs" }
 }
 

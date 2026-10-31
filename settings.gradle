@@ -24,6 +24,10 @@ pluginManagement {
                 includeGroupAndSubgroups('net.neoforged')
             }
         }
+        maven {
+            name = 'MinecraftForge'
+            url = uri('https://maven.minecraftforge.net')
+        }
     }
 }
 
@@ -36,3 +40,4 @@ includeBuild('build-logic')
 include('common')
 include('fabric')
 include('neoforge')
+include('forge')

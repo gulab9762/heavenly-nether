@@ -5,8 +5,8 @@ plugins {
 
 tasks.register('universalJar', Jar) {
     group = 'build'
-    description = 'Builds a single unified universal JAR compatible with both Fabric and NeoForge.'
-    dependsOn ':fabric:jar', ':neoforge:jar'
+    description = 'Builds a single unified universal JAR compatible with Fabric, NeoForge, and Forge.'
+    dependsOn ':fabric:jar', ':neoforge:jar', ':forge:jar'
 
     archiveBaseName.set("${project.mod_id}-universal")
     archiveVersion.set("${project.minecraft_version}-${project.version}")
@@ -21,6 +21,11 @@ tasks.register('universalJar', Jar) {
 
     // 2. Include NeoForge outputs (neoforge classes + META-INF/neoforge.mods.toml)
     from(zipTree(project(':neoforge').tasks.named('jar').get().archiveFile)) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+
+    // 3. Include Forge outputs (forge classes + META-INF/mods.toml)
+    from(zipTree(project(':forge').tasks.named('jar').get().archiveFile)) {
         exclude 'META-INF/MANIFEST.MF'
     }
 
@@ -46,7 +51,7 @@ tasks.register('buildUniversal') {
 tasks.register('buildAllMods') {
     group = 'build'
     description = 'Builds all supported mod loader JARs and the unified universal JAR.'
-    dependsOn ':fabric:build', ':neoforge:build', 'universalJar'
+    dependsOn ':fabric:build', ':neoforge:build', ':forge:build', 'universalJar'
 }
 
 // Fabric Tasks
@@ -87,6 +92,19 @@ tasks.register('runNeoForgeClient') {
     dependsOn ':neoforge:runClient'
 }
 
+// Forge Tasks
+tasks.register('buildForge') {
+    group = 'forge'
+    description = 'Builds the Forge mod JAR.'
+    dependsOn ':forge:build'
+}
+
+tasks.register('cleanForge') {
+    group = 'forge'
+    description = 'Cleans Forge build outputs.'
+    dependsOn ':forge:clean'
+}
+
 // Notification Task
 tasks.register('notifyBuildComplete') {
     group = 'notification'
@@ -105,5 +123,3 @@ tasks.register('notifyBuildComplete') {
         println "Notification sent to ntfy.sh/antigravity (Status: ${responseCode})"
     }
 }
-
-
