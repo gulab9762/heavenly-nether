@@ -40,6 +40,8 @@ public class TreeShakeForge {
         } catch (Throwable t) {
             Constants.LOG.debug("[Tree Shake] Failed to attach lifecycle listeners for LootModifierManager: {}", t.getMessage());
         }
+
+        Constants.LOG.info("[Tree Shake Forge] Mod initialized on Minecraft Forge 26.3!");
     }
 
     public static void ensureLootModifierManagerInitialized(HolderLookup.Provider lookupProvider) {

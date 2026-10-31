@@ -37,7 +37,8 @@ tasks.register('universalJar', Jar) {
             'Implementation-Title'    : project.mod_name,
             'Implementation-Version'  : project.version,
             'Implementation-Vendor'   : project.mod_author,
-            'Fabric-Loom-Remap'       : 'false'
+            'Fabric-Loom-Remap'       : 'false',
+            'MixinConfigs'            : "${project.mod_id}.mixins.json"
         ])
     }
 }

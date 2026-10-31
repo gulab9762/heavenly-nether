@@ -1,5 +1,6 @@
 package com.treeshake.client.animation.tree;
 
+import com.treeshake.Constants;
 import com.treeshake.client.config.TreeShakeConfig;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
@@ -79,6 +80,8 @@ public class TreeShakeManager {
             return;
         }
 
+        Constants.LOG.info("[Tree Shake] Triggered shake interaction at {} by player {}", pos, player.getName().getString());
+
         Vec3 punchVec = calculatePunchVector(player, pos, direction);
 
         // Check if the punched block is already part of an active tree
@@ -104,6 +107,9 @@ public class TreeShakeManager {
         if (structure == null) {
             return;
         }
+
+        Constants.LOG.info("[Tree Shake] Started shaking tree at {} with {} blocks ({} logs, {} leaves)",
+                structure.getRootPos(), structure.getAllBlocks().size(), structure.getLogs().size(), structure.getLeaves().size());
 
         // If the new tree overlaps with an existing animation, cleanly remove the old one first
         ACTIVE_ANIMATIONS.entrySet().removeIf(entry -> {
