@@ -116,7 +116,7 @@ public class UnharvestUpgradeScreen extends Screen {
         // Header Title & Stats
         extractor.centeredText(font, Component.literal("§5§lUNHARVEST §7| §dPlague Upgrade Tree"), this.width / 2, 10, 0xFFFFFFFF);
 
-        String statsText = String.format("§d✨ Essence: §f%s   §7|   §a🌿 Cleared: §f%.1f%% §7(%d/%d)",
+        String statsText = String.format(java.util.Locale.US, "§d✨ Essence: §f%s   §7|   §a🌿 Cleared: §f%.1f%% §7(%,d/%,d)",
                 state.getFormattedEssence(), state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops());
         extractor.centeredText(font, Component.literal(statsText), this.width / 2, 22, 0xFFFFFFFF);
 
@@ -266,9 +266,9 @@ public class UnharvestUpgradeScreen extends Screen {
         if (unlocked) {
             lines.add(Component.literal("§a✔ UNLOCKED").getVisualOrderText());
         } else if (canUnlock) {
-            lines.add(Component.literal(String.format("§e★ CLICK TO UNLOCK §d- %d Essence", node.cost)).getVisualOrderText());
+            lines.add(Component.literal(String.format(java.util.Locale.US, "§e★ CLICK TO UNLOCK §d- %,d Essence", node.cost)).getVisualOrderText());
         } else if (state.getEssence() < node.cost) {
-            lines.add(Component.literal(String.format("§c✖ Requires %d Essence §7(Have: %s)", node.cost, state.getFormattedEssence())).getVisualOrderText());
+            lines.add(Component.literal(String.format(java.util.Locale.US, "§c✖ Requires %,d Essence §7(Have: %s)", node.cost, state.getFormattedEssence())).getVisualOrderText());
         } else {
             lines.add(Component.literal("§8🔒 LOCKED (Requires previous node)").getVisualOrderText());
         }

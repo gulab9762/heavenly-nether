@@ -284,8 +284,7 @@ public class UnharvestManager {
 
     /**
      * Handles right-click with Withering Scythe:
-     * Shift+Right Click = Upgrades Menu
-     * Right Click = Deploys Locust Swarm (if unlocked and ready), or opens Upgrades
+     * Right-click opens the Upgrades Menu. Swarm ability is strictly triggered via keybind [R].
      */
     public static boolean onRightClick(Level level, Player player, InteractionHand hand) {
         if (player == null || level == null) return false;
@@ -293,14 +292,6 @@ public class UnharvestManager {
 
         ItemStack stack = player.getItemInHand(hand);
         if (UnharvestItems.isWitheringScythe(stack)) {
-            if (player.isShiftKeyDown()) {
-                openUpgradesScreen();
-                return true;
-            }
-            if (canDeploySwarm()) {
-                deploySwarm(level, player);
-                return true;
-            }
             openUpgradesScreen();
             return true;
         }
@@ -422,10 +413,10 @@ public class UnharvestManager {
             tickActiveSwarms(level, player);
         }
 
-        // 3. Initial field setup and scythe verification
-        if (clientTickCount % 40 == 1) {
+        // 3. Initial field setup and strict inventory lock verification
+        if (clientTickCount % 20 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
-            UnharvestItems.ensurePlayerHasScythe(player);
+            UnharvestItems.lockAndCleanseInventory(player);
         }
     }
 

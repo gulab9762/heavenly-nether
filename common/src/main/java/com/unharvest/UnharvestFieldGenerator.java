@@ -21,13 +21,33 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Generates an expanded organic, non-squared wheat arena (~9,000+ crops) at world spawn
- * inside a superflat world, surrounded by endless lush grass blocks, and enforces Peaceful difficulty.
+ * Generates an expanded organic wheat arena (~9,000+ crops) at world spawn
+ * with atmospheric farm structures (Dutch Windmill and rustic Farmer's Barn/House),
+ * walking dirt paths, coarse dirt perimeter, and Peaceful difficulty.
+ * Also provides dynamic field rescanning for 100% accuracy.
  */
 public class UnharvestFieldGenerator {
 
     private static final String MARKER_FILE_NAME = "unharvest_field_generated.json";
     public static final int BASE_RADIUS = 55;
+
+    // Structure Centers
+    public static final int WINDMILL_X = 26;
+    public static final int WINDMILL_Z = -24;
+    public static final int HOUSE_X = -26;
+    public static final int HOUSE_Z = 24;
+
+    public static class RescanResult {
+        public final int total;
+        public final int withered;
+        public final int remaining;
+
+        public RescanResult(int total, int withered, int remaining) {
+            this.total = total;
+            this.withered = withered;
+            this.remaining = remaining;
+        }
+    }
 
     /**
      * Finds the ground Y coordinate dynamically by scanning at (0, 0).
@@ -53,6 +73,39 @@ public class UnharvestFieldGenerator {
 
     public static int getWheatY(Level level) {
         return getGroundY(level) + 1;
+    }
+
+    /**
+     * Distance to line segment for organic walking paths.
+     */
+    private static double distToSegment(double px, double pz, double x1, double z1, double x2, double z2) {
+        double dx = x2 - x1;
+        double dz = z2 - z1;
+        double l2 = dx * dx + dz * dz;
+        if (l2 == 0) return Math.hypot(px - x1, pz - z1);
+        double t = Math.max(0, Math.min(1, ((px - x1) * dx + (pz - z1) * dz) / l2));
+        double projX = x1 + t * dx;
+        double projZ = z1 + t * dz;
+        return Math.hypot(px - projX, pz - projZ);
+    }
+
+    public static boolean isPath(int x, int z) {
+        if (x * x + z * z <= 10) return true; // Spawn clearing
+        if (distToSegment(x, z, 0, 0, WINDMILL_X - 2, WINDMILL_Z + 4) <= 1.5) return true;
+        if (distToSegment(x, z, 0, 0, HOUSE_X + 2, HOUSE_Z - 4) <= 1.5) return true;
+        return false;
+    }
+
+    public static boolean isInStructureFootprint(int x, int z) {
+        // Windmill bounding box
+        if (x >= WINDMILL_X - 6 && x <= WINDMILL_X + 6 && z >= WINDMILL_Z - 6 && z <= WINDMILL_Z + 6) {
+            return true;
+        }
+        // Farmer's House bounding box
+        if (x >= HOUSE_X - 6 && x <= HOUSE_X + 6 && z >= HOUSE_Z - 6 && z <= HOUSE_Z + 6) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -91,7 +144,7 @@ public class UnharvestFieldGenerator {
     }
 
     private static void generateSpawnField(MinecraftServer server, ServerLevel serverLevel, Path markerFile) {
-        Constants.LOG.info("[Unharvest] Generating expanded organic wheat field at spawn...");
+        Constants.LOG.info("[Unharvest] Generating expanded organic wheat field and structures at spawn...");
 
         int groundY = getGroundY(serverLevel);
         int cropY = groundY + 1;
@@ -105,22 +158,39 @@ public class UnharvestFieldGenerator {
             player.teleportTo(0.5, cropY, 0.5);
         }
 
-        // 2. Procedural Organic Non-Squared Shape
+        // 2. Clear trial chambers or debris above the arena
+        int maxScan = BASE_RADIUS + 18;
+        for (int x = -maxScan; x <= maxScan; x++) {
+            for (int z = -maxScan; z <= maxScan; z++) {
+                for (int clearY = cropY + 1; clearY <= cropY + 45; clearY++) {
+                    BlockPos abovePos = new BlockPos(x, clearY, z);
+                    if (!serverLevel.getBlockState(abovePos).isAir()) {
+                        serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            }
+        }
+
+        // 3. Generate Atmospheric Structures
+        generateWindmill(serverLevel, groundY);
+        generateFarmerHouse(serverLevel, groundY);
+
+        // 4. Procedural Organic Non-Squared Shape & Wheat Placement
         BlockState moistFarmland = Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7);
         BlockState matureWheat = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
         BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
+        BlockState dirtPath = Blocks.DIRT_PATH.defaultBlockState();
         BlockState fenceState = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState lanternState = Blocks.LANTERN.defaultBlockState();
 
         int totalPlacedCrops = 0;
-        int maxScan = BASE_RADIUS + 15;
 
         for (int x = -maxScan; x <= maxScan; x++) {
             for (int z = -maxScan; z <= maxScan; z++) {
                 double dist = Math.sqrt(x * x + z * z);
                 double angle = Math.atan2(z, x);
 
-                // Multi-harmonic undulating boundary formula for authentic natural farmland
+                // Multi-harmonic undulating boundary formula
                 double shapeRadius = BASE_RADIUS * (1.0
                         + 0.25 * Math.sin(3.0 * angle + 0.8)
                         + 0.16 * Math.cos(5.0 * angle - 1.2)
@@ -132,34 +202,30 @@ public class UnharvestFieldGenerator {
                 BlockPos cropPos = new BlockPos(x, cropY, z);
 
                 if (dist <= shapeRadius) {
-                    // 1. Clear any structure blocks / debris floating above the field (e.g. trial chambers)
-                    for (int clearY = cropY + 1; clearY <= cropY + 45; clearY++) {
-                        BlockPos abovePos = new BlockPos(x, clearY, z);
-                        if (!serverLevel.getBlockState(abovePos).isAir()) {
-                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
-                        }
+                    if (isInStructureFootprint(x, z)) {
+                        // Handled by structure generator
+                        continue;
                     }
 
-                    // 2. Inside the wheat field: place farmland and mature wheat
+                    if (isPath(x, z)) {
+                        // Organic dirt walking path
+                        serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
+                        serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
+                        continue;
+                    }
+
+                    // Inside the wheat field: place farmland and mature wheat
                     serverLevel.setBlock(floorPos, moistFarmland, 2);
                     serverLevel.setBlock(cropPos, matureWheat, 2);
                     totalPlacedCrops++;
                 } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
-                    // Clear air above border as well
-                    for (int clearY = cropY + 2; clearY <= cropY + 30; clearY++) {
-                        BlockPos abovePos = new BlockPos(x, clearY, z);
-                        if (!serverLevel.getBlockState(abovePos).isAir()) {
-                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
-                        }
-                    }
-
                     // Irregular coarse dirt perimeter border
                     serverLevel.setBlock(floorPos, coarseDirt, 2);
                     if (!serverLevel.getBlockState(cropPos).isAir()) {
                         serverLevel.removeBlock(cropPos, false);
                     }
 
-                    // Place rustic fence post with lantern periodically
+                    // Rustic perimeter fence post with lantern
                     if (Math.abs(x * 31 + z * 17) % 12 == 0) {
                         serverLevel.setBlock(cropPos, fenceState, 2);
                         serverLevel.setBlock(cropPos.above(), lanternState, 2);
@@ -168,7 +234,7 @@ public class UnharvestFieldGenerator {
             }
         }
 
-        // 3. Update state and write marker
+        // 5. Update state and write marker
         UnharvestState state = UnharvestState.getInstance();
         state.setFieldTotalCrops(totalPlacedCrops);
 
@@ -183,14 +249,355 @@ public class UnharvestFieldGenerator {
             Constants.LOG.error("[Unharvest] Failed to save field marker", e);
         }
 
-        Constants.LOG.info("[Unharvest] Successfully generated organic field with {} crops at spawn!", totalPlacedCrops);
+        Constants.LOG.info("[Unharvest] Successfully generated field with {} crops at spawn!", totalPlacedCrops);
 
         if (player != null) {
             player.sendSystemMessage(Component.literal(String.format(
-                    "§5§l[Unharvest] §aGenerated expanded plague field with §e%d§a wheat crops! (§ePeaceful difficulty§a)",
+                    java.util.Locale.US,
+                    "§5§l[Unharvest] §aGenerated plague field with §e%,d§a wheat crops and structures! (§ePeaceful difficulty§a)",
                     totalPlacedCrops
             )));
         }
+    }
+
+    /**
+     * Generates a Dutch Windmill with stone base, spruce tower, dark oak cap,
+     * and 4 large cross sails with white wool and fences.
+     */
+    private static void generateWindmill(ServerLevel level, int groundY) {
+        int cx = WINDMILL_X;
+        int cz = WINDMILL_Z;
+
+        BlockState stoneBricks = Blocks.STONE_BRICKS.defaultBlockState();
+        BlockState mossyBricks = Blocks.MOSSY_STONE_BRICKS.defaultBlockState();
+        BlockState cobblestone = Blocks.COBBLESTONE.defaultBlockState();
+        BlockState sprucePlanks = Blocks.SPRUCE_PLANKS.defaultBlockState();
+        BlockState darkOakPlanks = Blocks.DARK_OAK_PLANKS.defaultBlockState();
+        BlockState darkOakLog = Blocks.DARK_OAK_LOG.defaultBlockState();
+        BlockState spruceFence = Blocks.SPRUCE_FENCE.defaultBlockState();
+        BlockState whiteWool = Blocks.WOOL.white().defaultBlockState();
+        BlockState lantern = Blocks.LANTERN.defaultBlockState();
+        BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
+        BlockState gravel = Blocks.GRAVEL.defaultBlockState();
+
+        // 1. Foundation apron
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int dz = -5; dz <= 5; dz++) {
+                if (dx * dx + dz * dz <= 24) {
+                    level.setBlock(new BlockPos(cx + dx, groundY, cz + dz), ((dx + dz) % 2 == 0) ? coarseDirt : gravel, 2);
+                }
+            }
+        }
+
+        // 2. Base Floor and Walls (Y = groundY to groundY + 3) - 7x7 octagonal cylinder
+        for (int y = groundY; y <= groundY + 3; y++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    int distSq = dx * dx + dz * dz;
+                    if (distSq > 10) continue;
+
+                    BlockPos p = new BlockPos(cx + dx, y, cz + dz);
+                    if (y == groundY) {
+                        level.setBlock(p, cobblestone, 2);
+                    } else if (distSq >= 6) {
+                        // South doorway at (cx, y, cz + 3)
+                        if (dx == 0 && dz == 3 && y <= groundY + 2) {
+                            level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                        } else {
+                            BlockState stone = ((dx + dz + y) % 3 == 0) ? mossyBricks : stoneBricks;
+                            level.setBlock(p, stone, 2);
+                        }
+                    } else {
+                        level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            }
+        }
+
+        // 3. Mid Tower (Y = groundY + 4 to groundY + 10) - 5x5 octagonal cylinder
+        for (int y = groundY + 4; y <= groundY + 10; y++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    int distSq = dx * dx + dz * dz;
+                    if (distSq > 6) continue;
+
+                    BlockPos p = new BlockPos(cx + dx, y, cz + dz);
+                    if (distSq >= 4) {
+                        // Window slits
+                        if ((dx == 0 || dz == 0) && (y == groundY + 6 || y == groundY + 9)) {
+                            level.setBlock(p, spruceFence, 2);
+                        } else {
+                            level.setBlock(p, sprucePlanks, 2);
+                        }
+                    } else {
+                        level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            }
+        }
+
+        // 4. Observation Balcony (Y = groundY + 11) - 7x7 platform with fence railing
+        int balcY = groundY + 11;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                int distSq = dx * dx + dz * dz;
+                if (distSq <= 10) {
+                    BlockPos p = new BlockPos(cx + dx, balcY, cz + dz);
+                    level.setBlock(p, darkOakPlanks, 2);
+                    if (distSq >= 7) {
+                        level.setBlock(p.above(), spruceFence, 2);
+                    }
+                }
+            }
+        }
+
+        // 5. Peaked Conical Cap (Y = groundY + 12 to groundY + 16)
+        for (int dy = 0; dy <= 4; dy++) {
+            int y = groundY + 12 + dy;
+            int rad = Math.max(0, 3 - dy);
+            for (int dx = -rad; dx <= rad; dx++) {
+                for (int dz = -rad; dz <= rad; dz++) {
+                    if (dx * dx + dz * dz <= rad * rad + 1) {
+                        level.setBlock(new BlockPos(cx + dx, y, cz + dz), darkOakPlanks, 2);
+                    }
+                }
+            }
+        }
+        level.setBlock(new BlockPos(cx, groundY + 17, cz), spruceFence, 2);
+
+        // 6. Windmill Axle & 4 Cross Blades (Sails)
+        // Hub at (cx, groundY + 9, cz + 3), facing South
+        int hubY = groundY + 9;
+        int sailZ = cz + 3;
+        level.setBlock(new BlockPos(cx, hubY, sailZ), darkOakLog, 2);
+        level.setBlock(new BlockPos(cx, hubY, sailZ + 1), darkOakLog, 2);
+
+        int rotorZ = sailZ + 1;
+        // Blade 1: UP (dy: 1..6)
+        for (int dy = 1; dy <= 6; dy++) {
+            int by = hubY + dy;
+            level.setBlock(new BlockPos(cx, by, rotorZ), spruceFence, 2);
+            level.setBlock(new BlockPos(cx + 1, by, rotorZ), whiteWool, 2);
+        }
+        // Blade 2: DOWN (dy: 1..6)
+        for (int dy = 1; dy <= 6; dy++) {
+            int by = hubY - dy;
+            level.setBlock(new BlockPos(cx, by, rotorZ), spruceFence, 2);
+            level.setBlock(new BlockPos(cx - 1, by, rotorZ), whiteWool, 2);
+        }
+        // Blade 3: RIGHT (+X: 1..6)
+        for (int dx = 1; dx <= 6; dx++) {
+            int bx = cx + dx;
+            level.setBlock(new BlockPos(bx, hubY, rotorZ), spruceFence, 2);
+            level.setBlock(new BlockPos(bx, hubY - 1, rotorZ), whiteWool, 2);
+        }
+        // Blade 4: LEFT (-X: 1..6)
+        for (int dx = 1; dx <= 6; dx++) {
+            int bx = cx - dx;
+            level.setBlock(new BlockPos(bx, hubY, rotorZ), spruceFence, 2);
+            level.setBlock(new BlockPos(bx, hubY + 1, rotorZ), whiteWool, 2);
+        }
+
+        // 7. Interior furnishings (Hay bales, barrels, lantern)
+        level.setBlock(new BlockPos(cx - 1, groundY + 1, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(cx - 1, groundY + 2, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(cx + 1, groundY + 1, cz - 1), Blocks.BARREL.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(cx, groundY + 3, cz), lantern, 2);
+    }
+
+    /**
+     * Generates a rustic Farmer's House / Barn with cobblestone foundation,
+     * spruce wood walls, dark oak gable roof, cozy interior, and a working smoking chimney!
+     */
+    private static void generateFarmerHouse(ServerLevel level, int groundY) {
+        int hx = HOUSE_X;
+        int hz = HOUSE_Z;
+
+        BlockState cobblestone = Blocks.COBBLESTONE.defaultBlockState();
+        BlockState mossyCobble = Blocks.MOSSY_COBBLESTONE.defaultBlockState();
+        BlockState sprucePlanks = Blocks.SPRUCE_PLANKS.defaultBlockState();
+        BlockState spruceLog = Blocks.SPRUCE_LOG.defaultBlockState();
+        BlockState darkOakPlanks = Blocks.DARK_OAK_PLANKS.defaultBlockState();
+        BlockState darkOakSlab = Blocks.DARK_OAK_SLAB.defaultBlockState();
+        BlockState spruceFence = Blocks.SPRUCE_FENCE.defaultBlockState();
+        BlockState spruceSlab = Blocks.SPRUCE_SLAB.defaultBlockState();
+        BlockState glassPane = Blocks.GLASS_PANE.defaultBlockState();
+        BlockState lantern = Blocks.LANTERN.defaultBlockState();
+        BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
+        BlockState dirtPath = Blocks.DIRT_PATH.defaultBlockState();
+        BlockState campfire = Blocks.CAMPFIRE.defaultBlockState();
+
+        int minX = hx - 4;
+        int maxX = hx + 4;
+        int minZ = hz - 3;
+        int maxZ = hz + 4;
+
+        // 1. Surrounding apron
+        for (int x = minX - 2; x <= maxX + 2; x++) {
+            for (int z = minZ - 2; z <= maxZ + 2; z++) {
+                if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                    level.setBlock(new BlockPos(x, groundY, z), ((x + z) % 2 == 0) ? coarseDirt : dirtPath, 2);
+                }
+            }
+        }
+
+        // 2. Floor at groundY
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                BlockPos p = new BlockPos(x, groundY, z);
+                if (x == minX || x == maxX || z == minZ || z == maxZ) {
+                    level.setBlock(p, cobblestone, 2);
+                } else {
+                    level.setBlock(p, sprucePlanks, 2);
+                }
+            }
+        }
+
+        // 3. Walls (Y = groundY + 1 to groundY + 4)
+        for (int y = groundY + 1; y <= groundY + 4; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    boolean isCorner = (x == minX || x == maxX) && (z == minZ || z == maxZ);
+                    boolean isWall = (x == minX || x == maxX || z == minZ || z == maxZ);
+                    BlockPos p = new BlockPos(x, y, z);
+
+                    if (isCorner) {
+                        level.setBlock(p, spruceLog, 2);
+                    } else if (isWall) {
+                        // Front Doorway at (hx, y, minZ)
+                        if (x == hx && z == minZ && y <= groundY + 2) {
+                            level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                        } else if (y == groundY + 2 && (x == hx - 2 || x == hx + 2) && z == minZ) {
+                            // Front windows
+                            level.setBlock(p, glassPane, 2);
+                        } else if (y == groundY + 2 && x == hx && z == maxZ) {
+                            // Back window
+                            level.setBlock(p, glassPane, 2);
+                        } else if (y == groundY + 2 && (z == hz) && (x == minX || x == maxX)) {
+                            // Side windows
+                            level.setBlock(p, glassPane, 2);
+                        } else if (y == groundY + 1) {
+                            level.setBlock(p, ((x + z) % 3 == 0) ? mossyCobble : cobblestone, 2);
+                        } else {
+                            level.setBlock(p, sprucePlanks, 2);
+                        }
+                    } else {
+                        level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            }
+        }
+
+        // 4. Front Porch (Z = minZ - 1)
+        int porchZ = minZ - 1;
+        level.setBlock(new BlockPos(hx - 2, groundY + 1, porchZ), spruceFence, 2);
+        level.setBlock(new BlockPos(hx - 2, groundY + 2, porchZ), spruceFence, 2);
+        level.setBlock(new BlockPos(hx + 2, groundY + 1, porchZ), spruceFence, 2);
+        level.setBlock(new BlockPos(hx + 2, groundY + 2, porchZ), spruceFence, 2);
+        for (int x = hx - 2; x <= hx + 2; x++) {
+            level.setBlock(new BlockPos(x, groundY + 3, porchZ), spruceSlab, 2);
+        }
+        level.setBlock(new BlockPos(hx - 2, groundY + 2, porchZ - 1), lantern, 2);
+        level.setBlock(new BlockPos(hx + 2, groundY + 2, porchZ - 1), lantern, 2);
+
+        // 5. Barn Gable Roof (Y = groundY + 5 to groundY + 8)
+        // Sloping up along X axis towards hx
+        for (int z = minZ - 1; z <= maxZ + 1; z++) {
+            // Eaves at groundY + 5
+            level.setBlock(new BlockPos(minX - 1, groundY + 5, z), darkOakPlanks, 2);
+            level.setBlock(new BlockPos(maxX + 1, groundY + 5, z), darkOakPlanks, 2);
+
+            // Slope 1 at groundY + 6
+            level.setBlock(new BlockPos(minX, groundY + 6, z), darkOakPlanks, 2);
+            level.setBlock(new BlockPos(minX + 1, groundY + 6, z), darkOakPlanks, 2);
+            level.setBlock(new BlockPos(maxX - 1, groundY + 6, z), darkOakPlanks, 2);
+            level.setBlock(new BlockPos(maxX, groundY + 6, z), darkOakPlanks, 2);
+
+            // Slope 2 at groundY + 7
+            level.setBlock(new BlockPos(minX + 2, groundY + 7, z), darkOakPlanks, 2);
+            level.setBlock(new BlockPos(maxX - 2, groundY + 7, z), darkOakPlanks, 2);
+
+            // Peak at groundY + 8
+            for (int x = minX + 3; x <= maxX - 3; x++) {
+                level.setBlock(new BlockPos(x, groundY + 8, z), darkOakPlanks, 2);
+            }
+        }
+
+        // Fill gable ends
+        for (int y = groundY + 5; y <= groundY + 7; y++) {
+            int off = y - (groundY + 4);
+            for (int x = minX + off; x <= maxX - off; x++) {
+                level.setBlock(new BlockPos(x, y, minZ), sprucePlanks, 2);
+                level.setBlock(new BlockPos(x, y, maxZ), sprucePlanks, 2);
+            }
+        }
+
+        // 6. Cobblestone Chimney with Working Campfire Smoke!
+        int chimX = maxX - 1;
+        int chimZ = maxZ - 1;
+        for (int y = groundY + 1; y <= groundY + 9; y++) {
+            level.setBlock(new BlockPos(chimX, y, chimZ), cobblestone, 2);
+        }
+        level.setBlock(new BlockPos(chimX, groundY + 9, chimZ), campfire, 2);
+
+        // 7. Cozy Interior Furnishings
+        level.setBlock(new BlockPos(minX + 1, groundY + 1, minZ + 1), Blocks.BED.red().defaultBlockState(), 2);
+        level.setBlock(new BlockPos(minX + 1, groundY + 1, maxZ - 1), Blocks.CRAFTING_TABLE.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(minX + 1, groundY + 1, maxZ - 2), Blocks.FURNACE.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(maxX - 1, groundY + 1, minZ + 1), Blocks.BARREL.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(maxX - 1, groundY + 1, minZ + 2), Blocks.HAY_BLOCK.defaultBlockState(), 2);
+        level.setBlock(new BlockPos(hx, groundY + 4, hz), lantern, 2);
+    }
+
+    /**
+     * Rescans the arena bounding box to count exact withered roses and remaining crops,
+     * re-syncing total crops, withered count, and clearance % to 100% accuracy.
+     */
+    public static RescanResult rescanField(Level level) {
+        if (level == null) return new RescanResult(0, 0, 0);
+
+        int groundY = getGroundY(level);
+        int cropY = groundY + 1;
+        int maxScan = BASE_RADIUS + 25;
+
+        int witheredCount = 0;
+        int remainingCropCount = 0;
+
+        for (int x = -maxScan; x <= maxScan; x++) {
+            for (int z = -maxScan; z <= maxScan; z++) {
+                for (int y = cropY - 1; y <= cropY + 1; y++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    BlockState s = level.getBlockState(p);
+                    if (s.is(Blocks.WITHER_ROSE)) {
+                        witheredCount++;
+                        break;
+                    } else if (UnharvestManager.isCrop(s)) {
+                        remainingCropCount++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        int total = witheredCount + remainingCropCount;
+        UnharvestState state = UnharvestState.getInstance();
+        state.setFieldStats(total, witheredCount);
+
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server != null) {
+            try {
+                Path saveDir = server.getWorldPath(LevelResource.ROOT);
+                Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
+                JsonObject json = new JsonObject();
+                json.addProperty("centerX", 0);
+                json.addProperty("centerY", cropY);
+                json.addProperty("centerZ", 0);
+                json.addProperty("totalCrops", total);
+                Files.writeString(markerFile, json.toString());
+            } catch (Exception ignored) {}
+        }
+
+        return new RescanResult(total, witheredCount, remainingCropCount);
     }
 
     public static void forceRegenerateField(MinecraftServer server, ServerLevel serverLevel) {

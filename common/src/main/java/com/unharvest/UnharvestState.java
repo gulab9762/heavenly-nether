@@ -215,18 +215,24 @@ public class UnharvestState {
         }
     }
 
+    public synchronized void setTotalWithered(int count) {
+        this.totalWithered = Math.min(fieldTotalCrops, Math.max(0, count));
+        save();
+    }
+
+    public synchronized void setFieldStats(int totalCrops, int totalWithered) {
+        this.fieldTotalCrops = Math.max(1, totalCrops);
+        this.totalWithered = Math.min(this.fieldTotalCrops, Math.max(0, totalWithered));
+        save();
+    }
+
     public synchronized float getClearedPercentage() {
         if (fieldTotalCrops <= 0) return 0.0f;
         return Math.min(100.0f, ((float) totalWithered / (float) fieldTotalCrops) * 100.0f);
     }
 
     public String getFormattedEssence() {
-        if (essence >= 1_000_000) {
-            return String.format("%.1fM", essence / 1_000_000.0);
-        } else if (essence >= 1_000) {
-            return String.format("%.1fK", essence / 1_000.0);
-        }
-        return String.valueOf(essence);
+        return String.format(Locale.US, "%,d", essence);
     }
 
     // --- GRAPH NODE LOGIC ---

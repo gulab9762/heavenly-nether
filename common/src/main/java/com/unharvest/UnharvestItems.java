@@ -57,32 +57,50 @@ public class UnharvestItems {
     }
 
     /**
-     * Ensures the player possesses a Withering Scythe in their inventory.
-     * Strictly delivers only if player is in an Unharvest world.
+     * Enforces strict inventory lock:
+     * - Removes any item in the player's inventory that is not the Withering Scythe.
+     * - Ensures the player has the Withering Scythe equipped in slot 0.
      */
-    public static void ensurePlayerHasScythe(Player player) {
+    public static void lockAndCleanseInventory(Player player) {
         if (player == null) return;
-
         if (!UnharvestManager.isUnharvestWorld(player.level())) {
             return;
         }
 
-        // Check if already in inventory
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+        boolean hasScythe = false;
+        int containerSize = player.getInventory().getContainerSize();
+
+        for (int i = 0; i < containerSize; i++) {
             ItemStack stack = player.getInventory().getItem(i);
+            if (stack == null || stack.isEmpty()) continue;
+
             if (isWitheringScythe(stack)) {
-                return;
+                if (!hasScythe) {
+                    hasScythe = true;
+                } else {
+                    // Duplicate scythe: remove
+                    player.getInventory().setItem(i, ItemStack.EMPTY);
+                }
+            } else {
+                // Non-scythe item (e.g. lanterns, seeds, fences): purge from inventory
+                player.getInventory().setItem(i, ItemStack.EMPTY);
             }
         }
 
-        // Give scythe to player
-        ItemStack scythe = createWitheringScythe();
-        if (!player.addItem(scythe)) {
+        if (!hasScythe) {
+            ItemStack scythe = createWitheringScythe();
             player.getInventory().setItem(0, scythe);
+            player.sendSystemMessage(
+                    Component.literal("§5§l[Unharvest] §fEquipped the §5§lWithering Scythe§f! Drain the wheat field. (§ePress [U] for Upgrades§f)")
+            );
         }
+    }
 
-        player.sendSystemMessage(
-                Component.literal("§5§l[Unharvest] §fEquipped the §5§lWithering Scythe§f! Drain the wheat field. (§ePress [U] for Upgrades§f)")
-        );
+    /**
+     * Ensures the player possesses a Withering Scythe in their inventory.
+     * Strictly delivers only if player is in an Unharvest world.
+     */
+    public static void ensurePlayerHasScythe(Player player) {
+        lockAndCleanseInventory(player);
     }
 }

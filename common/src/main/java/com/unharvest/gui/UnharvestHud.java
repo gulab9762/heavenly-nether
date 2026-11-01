@@ -32,7 +32,7 @@ public class UnharvestHud {
     private static void renderTopLeftHud(GuiGraphicsExtractor extractor, Font font, UnharvestState state) {
         int x = 10;
         int y = 10;
-        int width = 180;
+        int width = 210;
 
         boolean upgradeAvailable = isAnyUpgradeAvailable(state);
         int height = upgradeAvailable ? 54 : 42;
@@ -47,11 +47,11 @@ public class UnharvestHud {
         // Title
         extractor.text(font, Component.literal("§5§lUNHARVEST §7| §dPlague Field"), x, y, 0xFFFFFFFF);
 
-        // Essence Count
+        // Essence Count (exact full number to 1s place)
         extractor.text(font, Component.literal("§d✨ Essence: §f" + state.getFormattedEssence()), x, y + 13, 0xFFFFFFFF);
 
-        // Field Clearance %
-        extractor.text(font, Component.literal(String.format("§a🌿 Cleared: §f%.1f%% §7(%d/%d)",
+        // Field Clearance % (exact counts with comma formatting)
+        extractor.text(font, Component.literal(String.format(java.util.Locale.US, "§a🌿 Cleared: §f%.1f%% §7(%,d/%,d)",
                 state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFFFF);
 
         // Upgrade Notification
@@ -65,6 +65,11 @@ public class UnharvestHud {
     }
 
     private static void renderSwarmAbilityCard(GuiGraphicsExtractor extractor, Minecraft client, Font font, UnharvestState state) {
+        // Completely hide the bottom-right Locust Swarm card if not unlocked yet
+        if (!state.isSwarmUnlocked()) {
+            return;
+        }
+
         int screenWidth = client.getWindow().getGuiScaledWidth();
         int screenHeight = client.getWindow().getGuiScaledHeight();
 
@@ -72,19 +77,15 @@ public class UnharvestHud {
         int x = screenWidth - size - 16;
         int y = screenHeight - size - 16;
 
-        boolean unlocked = state.isSwarmUnlocked();
         int remainingTicks = UnharvestManager.getSwarmCooldownRemaining();
-        boolean onCooldown = unlocked && (remainingTicks > 0);
+        boolean onCooldown = remainingTicks > 0;
 
         // Background box
-        int bgColor = unlocked ? 0xD0101810 : 0xAA181818;
-        extractor.fill(x, y, x + size, y + size, bgColor);
+        extractor.fill(x, y, x + size, y + size, 0xD0101810);
 
         // Border color
         int borderColor;
-        if (!unlocked) {
-            borderColor = 0xFF444444;
-        } else if (onCooldown) {
+        if (onCooldown) {
             borderColor = 0xFF2A502A;
         } else {
             long pulse = (System.currentTimeMillis() / 300) % 2;
@@ -97,32 +98,26 @@ public class UnharvestHud {
         extractor.fill(x, y, x + 1, y + size, borderColor);
         extractor.fill(x + size - 1, y, x + size, y + size, borderColor);
 
-        // Icon
+        // Locust icon
         int iconY = y + 8;
-        if (!unlocked) {
-            extractor.centeredText(font, Component.literal("§8🔒"), x + size / 2, iconY, 0xFFFFFFFF);
-            extractor.centeredText(font, Component.literal("§8[R] Swarm"), x + size / 2, y + 27, 0xFFAAAAAA);
+        extractor.centeredText(font, Component.literal("§a🦗"), x + size / 2, iconY, 0xFFFFFFFF);
+
+        // Keybind badge [R] at top-right
+        extractor.fill(x + size - 12, y + 2, x + size - 2, y + 10, 0xAA000000);
+        extractor.text(font, Component.literal("§eR"), x + size - 9, y + 2, 0xFFFFFFFF);
+
+        if (onCooldown) {
+            // Cooldown radial wipe overlay
+            float frac = UnharvestManager.getSwarmCooldownFraction();
+            int overlayHeight = (int) (frac * (size - 2));
+            extractor.fill(x + 1, y + size - 1 - overlayHeight, x + size - 1, y + size - 1, 0x90000000);
+
+            // Remaining seconds countdown
+            float seconds = remainingTicks / 20.0f;
+            String timeStr = String.format(java.util.Locale.US, "%.1fs", seconds);
+            extractor.centeredText(font, Component.literal("§e" + timeStr), x + size / 2, y + 27, 0xFFFFFFFF);
         } else {
-            // Locust icon
-            extractor.centeredText(font, Component.literal("§a🦗"), x + size / 2, iconY, 0xFFFFFFFF);
-
-            // Keybind badge [R] at top-right
-            extractor.fill(x + size - 12, y + 2, x + size - 2, y + 10, 0xAA000000);
-            extractor.text(font, Component.literal("§eR"), x + size - 9, y + 2, 0xFFFFFFFF);
-
-            if (onCooldown) {
-                // Cooldown radial wipe overlay
-                float frac = UnharvestManager.getSwarmCooldownFraction();
-                int overlayHeight = (int) (frac * (size - 2));
-                extractor.fill(x + 1, y + size - 1 - overlayHeight, x + size - 1, y + size - 1, 0x90000000);
-
-                // Remaining seconds countdown
-                float seconds = remainingTicks / 20.0f;
-                String timeStr = String.format("%.1fs", seconds);
-                extractor.centeredText(font, Component.literal("§e" + timeStr), x + size / 2, y + 27, 0xFFFFFFFF);
-            } else {
-                extractor.centeredText(font, Component.literal("§aREADY"), x + size / 2, y + 27, 0xFFFFFFFF);
-            }
+            extractor.centeredText(font, Component.literal("§aREADY"), x + size / 2, y + 27, 0xFFFFFFFF);
         }
     }
 

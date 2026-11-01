@@ -41,6 +41,28 @@ public class UnharvestCommands {
         return 1;
     }
 
+    public static int rescanField(Player player) {
+        if (player == null) return 0;
+        if (!UnharvestManager.isUnharvestWorld(player.level())) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
+            return 0;
+        }
+
+        UnharvestFieldGenerator.RescanResult result = UnharvestFieldGenerator.rescanField(player.level());
+        UnharvestState state = UnharvestState.getInstance();
+
+        player.sendSystemMessage(Component.literal(String.format(
+                java.util.Locale.US,
+                "§5§l[Unharvest] §aField rescan complete! §d%,d §awithered, §e%,d §aremaining (§6%,d §atotal). Clearance: §e%.1f%%",
+                result.withered, result.remaining, result.total, state.getClearedPercentage()
+        )));
+
+        if (result.remaining == 0 && result.total > 0) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §a★ 100% Cleared! Every crop in the plague field has been withered."));
+        }
+        return 1;
+    }
+
     public static int regenerateField(Player player) {
         if (player != null && !UnharvestManager.isUnharvestWorld(player.level())) {
             player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
