@@ -1,4 +1,5 @@
 {
+  "generator.unharvest.unharvest_field": "Unharvest (Wheat Field)",
   "worldPreset.unharvest.unharvest_field": "Unharvest (Wheat Field)",
   "item.unharvest.withering_scythe": "Withering Scythe",
   "item.unharvest.withering_scythe.desc": "The touch of decay. Left-click wheat to wither it into a Wither Rose.",

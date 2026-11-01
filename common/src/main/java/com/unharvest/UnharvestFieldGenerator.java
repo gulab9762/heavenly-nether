@@ -4,13 +4,16 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
@@ -148,19 +151,85 @@ public class UnharvestFieldGenerator {
     }
 
     /**
-     * Bounding footprints for the structures and their aprons.
-     * Guaranteed to protect structures from air-clearing or crop replacement.
+     * Exact solid structure footprint.
+     * Only covers the actual walls and interior of the house, and the stone base of the windmill.
+     * Everything outside these bounds will generate dense wheat right up to the walls!
      */
-    public static boolean isInStructureFootprint(int x, int z) {
-        // Windmill footprint
-        if (x >= WINDMILL_X - 7 && x <= WINDMILL_X + 7 && z >= WINDMILL_Z - 6 && z <= WINDMILL_Z + 6) {
+    public static boolean isSolidStructure(int x, int z) {
+        // Farmer's House walls and interior: minX..maxX, minZ..maxZ
+        int minX = HOUSE_X - 4;
+        int maxX = HOUSE_X + 4;
+        int minZ = HOUSE_Z - 3;
+        int maxZ = HOUSE_Z + 4;
+        if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
             return true;
         }
-        // Farmer's House footprint (building, porch, chimney, roof overhangs, apron)
-        if (x >= HOUSE_X - 6 && x <= HOUSE_X + 6 && z >= HOUSE_Z - 6 && z <= HOUSE_Z + 6) {
+
+        // Porch floor
+        int porchZ = minZ - 1;
+        if (x >= HOUSE_X - 2 && x <= HOUSE_X + 2 && z == porchZ) {
             return true;
         }
+
+        // Windmill round stone base (dx^2 + dz^2 <= 10)
+        int wdx = x - WINDMILL_X;
+        int wdz = z - WINDMILL_Z;
+        if (wdx * wdx + wdz * wdz <= 10) {
+            return true;
+        }
+
         return false;
+    }
+
+    public static boolean isNearStructure(int x, int z) {
+        int minX = HOUSE_X - 6;
+        int maxX = HOUSE_X + 6;
+        int minZ = HOUSE_Z - 5;
+        int maxZ = HOUSE_Z + 6;
+        if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+            return true;
+        }
+
+        int wdx = x - WINDMILL_X;
+        int wdz = z - WINDMILL_Z;
+        if (wdx * wdx + wdz * wdz <= 64) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Enforces Adventure gamemode, Peaceful difficulty, sunset lighting (time 12500),
+     * and freezes daylight cycle for Unharvest worlds.
+     */
+    public static void applyWorldRules(MinecraftServer server, ServerLevel serverLevel) {
+        if (server == null || serverLevel == null) return;
+
+        // 1. Enforce Peaceful difficulty
+        if (server.getWorldData().getDifficulty() != Difficulty.PEACEFUL) {
+            server.setDifficulty(Difficulty.PEACEFUL, true);
+        }
+
+        // 2. Enforce Adventure mode on server default and all connected players
+        server.setDefaultGameType(GameType.ADVENTURE);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.gameMode.getGameModeForPlayer() != GameType.ADVENTURE) {
+                player.setGameMode(GameType.ADVENTURE);
+            }
+        }
+
+        // 3. Set sunset time (12500) and freeze daylight cycle (advance_time false & doDaylightCycle false)
+        CommandSourceStack stack = server.createCommandSourceStack().withSuppressedOutput();
+        try {
+            server.getCommands().performPrefixedCommand(stack, "gamerule advance_time false");
+        } catch (Exception ignored) {}
+        try {
+            server.getCommands().performPrefixedCommand(stack, "gamerule doDaylightCycle false");
+        } catch (Exception ignored) {}
+        try {
+            server.getCommands().performPrefixedCommand(stack, "time set 12500");
+        } catch (Exception ignored) {}
     }
 
     /**
@@ -176,13 +245,10 @@ public class UnharvestFieldGenerator {
         ServerLevel serverLevel = server.overworld();
         if (serverLevel == null) return;
 
+        applyWorldRules(server, serverLevel);
+
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
         Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
-
-        // Always enforce Peaceful difficulty in Unharvest worlds
-        if (server.getWorldData().getDifficulty() != Difficulty.PEACEFUL) {
-            server.setDifficulty(Difficulty.PEACEFUL, true);
-        }
 
         if (Files.exists(markerFile)) {
             try {
@@ -221,6 +287,8 @@ public class UnharvestFieldGenerator {
         totalPlacedCrops = 0;
         processedPointsCount = 0;
         currentMarkerFile = markerFile;
+
+        applyWorldRules(server, serverLevel);
 
         // Reset withered count so clearance begins at 0%
         UnharvestState.getInstance().setTotalWithered(0);
@@ -288,9 +356,8 @@ public class UnharvestFieldGenerator {
             int z = pt.z;
             double dist = pt.dist;
 
-            // CRITICAL FIX: Skip structure footprints IMMEDIATELY before any air-clearing or modifications!
-            // This prevents the air clearing loop from slicing off the farmhouse roof or windmill tower!
-            if (isInStructureFootprint(x, z)) {
+            // Skip solid building interiors and foundations
+            if (isSolidStructure(x, z)) {
                 continue;
             }
 
@@ -304,9 +371,19 @@ public class UnharvestFieldGenerator {
             }
 
             // Clear any debris or floating structures above the field
-            for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
-                BlockPos abovePos = new BlockPos(x, clearY, z);
-                if (!serverLevel.getBlockState(abovePos).isAir()) {
+            // Do NOT clear above currentCropY + 1 near structures so roof eaves, balcony, and sails are preserved!
+            if (!isNearStructure(x, z)) {
+                for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
+                    BlockPos abovePos = new BlockPos(x, clearY, z);
+                    if (!serverLevel.getBlockState(abovePos).isAir()) {
+                        serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                    }
+                }
+            } else {
+                // Near structure: only clear the space right above the crop if it's not part of the roof or sails
+                BlockPos abovePos = new BlockPos(x, currentCropY + 1, z);
+                BlockState abState = serverLevel.getBlockState(abovePos);
+                if (!abState.isAir() && !abState.is(Blocks.DARK_OAK_PLANKS) && !abState.is(Blocks.SPRUCE_FENCE) && !abState.is(Blocks.WOOL.white())) {
                     serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
                 }
             }
@@ -410,22 +487,8 @@ public class UnharvestFieldGenerator {
         BlockState spruceFence = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState whiteWool = Blocks.WOOL.white().defaultBlockState();
         BlockState lantern = Blocks.LANTERN.defaultBlockState();
-        BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
-        BlockState gravel = Blocks.GRAVEL.defaultBlockState();
 
-        // 1. Foundation apron and air clearing
-        for (int dx = -5; dx <= 5; dx++) {
-            for (int dz = -5; dz <= 5; dz++) {
-                if (dx * dx + dz * dz <= 24) {
-                    level.setBlock(new BlockPos(cx + dx, groundY, cz + dz), ((dx + dz) % 2 == 0) ? coarseDirt : gravel, 2);
-                    for (int y = groundY + 1; y <= groundY + 4; y++) {
-                        level.setBlock(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState(), 2);
-                    }
-                }
-            }
-        }
-
-        // 2. Base Floor and Walls (Y = groundY to groundY + 3) - 7x7 octagonal cylinder
+        // 1. Base Floor and Walls (Y = groundY to groundY + 3) - 7x7 octagonal cylinder
         for (int y = groundY; y <= groundY + 3; y++) {
             for (int dx = -3; dx <= 3; dx++) {
                 for (int dz = -3; dz <= 3; dz++) {
@@ -567,16 +630,12 @@ public class UnharvestFieldGenerator {
         int minZ = hz - 3;
         int maxZ = hz + 4;
 
-        // 1. Surrounding apron and yard (set walking path and clear all air above!)
-        for (int x = minX - 3; x <= maxX + 3; x++) {
-            for (int z = minZ - 3; z <= maxZ + 3; z++) {
-                if (x < minX || x > maxX || z < minZ || z > maxZ) {
-                    level.setBlock(new BlockPos(x, groundY, z), ((x + z) % 2 == 0) ? coarseDirt : dirtPath, 2);
-                    for (int y = groundY + 1; y <= groundY + 4; y++) {
-                        level.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(), 2);
-                    }
-                }
-            }
+        // 1. Porch floor at groundY
+        int porchZ = minZ - 1;
+        for (int x = hx - 2; x <= hx + 2; x++) {
+            level.setBlock(new BlockPos(x, groundY, porchZ), cobblestone, 2);
+            level.setBlock(new BlockPos(x, groundY + 1, porchZ), Blocks.AIR.defaultBlockState(), 2);
+            level.setBlock(new BlockPos(x, groundY + 2, porchZ), Blocks.AIR.defaultBlockState(), 2);
         }
 
         // 2. Floor at groundY
@@ -627,15 +686,14 @@ public class UnharvestFieldGenerator {
         }
 
         // 4. Front Porch (Z = minZ - 1)
-        int porchZ = minZ - 1;
         level.setBlock(new BlockPos(hx - 2, groundY + 1, porchZ), spruceFence, 2);
         level.setBlock(new BlockPos(hx - 2, groundY + 2, porchZ), spruceFence, 2);
         level.setBlock(new BlockPos(hx + 2, groundY + 1, porchZ), spruceFence, 2);
         level.setBlock(new BlockPos(hx + 2, groundY + 2, porchZ), spruceFence, 2);
         for (int x = hx - 2; x <= hx + 2; x++) {
-            level.setBlock(new BlockPos(x, groundY + 3, porchZ), spruceSlab, 2);
+            level.setBlock(new BlockPos(x, groundY + 3, porchZ), sprucePlanks, 2);
         }
-        // Lanterns hanging directly beneath the porch roof slabs
+        // Lanterns hanging directly beneath the porch roof
         BlockState hangingLantern = lantern.setValue(LanternBlock.HANGING, true);
         level.setBlock(new BlockPos(hx - 1, groundY + 2, porchZ), hangingLantern, 2);
         level.setBlock(new BlockPos(hx + 1, groundY + 2, porchZ), hangingLantern, 2);
