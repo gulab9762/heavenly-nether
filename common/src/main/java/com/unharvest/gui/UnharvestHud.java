@@ -128,9 +128,6 @@ public class UnharvestHud {
     }
 
     public static boolean isAnyUpgradeAvailable(UnharvestState state) {
-        for (String id : UnharvestState.NODES.keySet()) {
-            if (state.canUnlockNode(id)) return true;
-        }
-        return false;
+        return state != null && state.hasAvailableUpgrade();
     }
 }

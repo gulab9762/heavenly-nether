@@ -284,6 +284,13 @@ public class UnharvestState {
         return this.essence >= node.cost;
     }
 
+    public synchronized boolean hasAvailableUpgrade() {
+        for (String id : NODES.keySet()) {
+            if (canUnlockNode(id)) return true;
+        }
+        return false;
+    }
+
     public synchronized boolean unlockNode(String id) {
         UpgradeNode node = NODES.get(id);
         if (node == null) return false;

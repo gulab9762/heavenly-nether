@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.unharvest.gui.UnharvestUpgradeScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -84,6 +85,15 @@ public class UnharvestManager {
 
     private static final List<ActiveSwarm> ACTIVE_SWARMS = new ArrayList<>();
     private static int swarmCooldownTicks = 0;
+    private static boolean wasInitializedThisSession = false;
+    private static boolean lastUpgradeAvailable = false;
+
+    public static void playUpgradeNotificationSound() {
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.getSoundManager() != null) {
+            client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.25f));
+        }
+    }
 
     // Rolling essence tracker so cascading waves dynamically count up on screen
     private static long recentEarnedEssence = 0;
@@ -170,6 +180,8 @@ public class UnharvestManager {
         PENDING_POSITIONS.clear();
         ACTIVE_SWARMS.clear();
         swarmCooldownTicks = 0;
+        wasInitializedThisSession = false;
+        lastUpgradeAvailable = false;
         UnharvestFieldGenerator.clearCache();
     }
 
@@ -424,6 +436,19 @@ public class UnharvestManager {
         if (clientTickCount % 20 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
             UnharvestItems.lockAndCleanseInventory(player);
+        }
+
+        // 4. Upgrade availability notification sound
+        UnharvestState state = UnharvestState.getInstance();
+        if (!wasInitializedThisSession) {
+            wasInitializedThisSession = true;
+            lastUpgradeAvailable = state.hasAvailableUpgrade();
+        } else {
+            boolean currentlyAvailable = state.hasAvailableUpgrade();
+            if (!lastUpgradeAvailable && currentlyAvailable) {
+                playUpgradeNotificationSound();
+            }
+            lastUpgradeAvailable = currentlyAvailable;
         }
     }
 
