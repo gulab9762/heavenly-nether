@@ -304,7 +304,7 @@ public class UnharvestFieldGenerator {
         }
 
         if (player != null) {
-            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting radial field generation from center... expanding outward smoothly."));
+            // player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting radial field generation from center... expanding outward smoothly."));
             player.sendOverlayMessage(Component.literal("§5§l[Unharvest] §ePopulating plague field... §f0%"));
         }
 

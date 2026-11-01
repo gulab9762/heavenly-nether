@@ -91,7 +91,7 @@ public class UnharvestItems {
             ItemStack scythe = createWitheringScythe();
             player.getInventory().setItem(0, scythe);
             player.sendSystemMessage(
-                    Component.literal("§5§l[Unharvest] §fEquipped the §5§lWithering Scythe§f! Drain the wheat field. (§ePress [U] for Upgrades§f)")
+                    Component.literal("§5§l[Unharvest] §fEquipped the §5§lWithering Scythe§f! Drain the wheat field. (§ePress [U] or Right click for Upgrades§f)")
             );
         }
     }
