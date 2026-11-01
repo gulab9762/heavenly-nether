@@ -151,12 +151,14 @@ public class UnharvestManager {
             try {
                 Files.writeString(saveDir.resolve("unharvest_world.json"), "{\"unharvest\": true}");
             } catch (Exception ignored) {}
+            UnharvestState.getInstance().loadForWorld(saveDir);
             return true;
         }
 
         // 2. Check if unharvest marker files exist in save directory
         if (Files.exists(saveDir.resolve("unharvest_world.json")) || Files.exists(saveDir.resolve("unharvest_field_generated.json"))) {
             cachedIsUnharvestWorld = true;
+            UnharvestState.getInstance().loadForWorld(saveDir);
             return true;
         }
 
@@ -166,6 +168,7 @@ public class UnharvestManager {
             BlockState checkState = level.getBlockState(new BlockPos(0, checkY, 0));
             if (checkState.is(Blocks.WHEAT) || checkState.is(Blocks.WITHER_ROSE)) {
                 cachedIsUnharvestWorld = true;
+                UnharvestState.getInstance().loadForWorld(saveDir);
                 return true;
             }
         }
@@ -184,6 +187,7 @@ public class UnharvestManager {
         wasInitializedThisSession = false;
         lastUpgradeAvailable = false;
         UnharvestFieldGenerator.clearCache();
+        UnharvestState.getInstance().unload();
     }
 
     /**

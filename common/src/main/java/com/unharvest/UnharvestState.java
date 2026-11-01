@@ -17,9 +17,10 @@ import java.util.*;
  */
 public class UnharvestState {
 
-    private static final Path SAVE_PATH = Path.of("config", "unharvest_save.json");
+    public static final String SAVE_FILE_NAME = "unharvest_state.json";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final UnharvestState INSTANCE = new UnharvestState();
+    private Path activeSaveFile = null;
 
     // Currency and Progress
     private long essence = 0;
@@ -174,7 +175,6 @@ public class UnharvestState {
 
     public UnharvestState() {
         unlockedNodes.add("skull");
-        load();
     }
 
     public synchronized long getEssence() {
@@ -403,11 +403,27 @@ public class UnharvestState {
         save();
     }
 
-    // --- PERSISTENCE ---
-    public synchronized void load() {
-        try {
-            if (Files.exists(SAVE_PATH)) {
-                String content = Files.readString(SAVE_PATH);
+    // --- PER-WORLD PERSISTENCE ---
+
+    public synchronized void loadForWorld(Path worldDir) {
+        if (worldDir == null) return;
+        Path targetFile = worldDir.resolve(SAVE_FILE_NAME);
+        if (targetFile.equals(this.activeSaveFile)) {
+            return; // Already loaded and tracking this active world!
+        }
+
+        Constants.LOG.info("[Unharvest] Initializing progression for world: {}", worldDir.getFileName());
+        this.activeSaveFile = targetFile;
+        this.essence = 0;
+        this.totalWithered = 0;
+        this.fieldTotalCrops = 0;
+        this.victoryShown = false;
+        this.unlockedNodes.clear();
+        this.unlockedNodes.add("skull");
+
+        if (Files.exists(targetFile)) {
+            try {
+                String content = Files.readString(targetFile);
                 JsonObject json = JsonParser.parseString(content).getAsJsonObject();
                 if (json.has("essence")) essence = json.get("essence").getAsLong();
                 if (json.has("totalWithered")) totalWithered = json.get("totalWithered").getAsInt();
@@ -416,53 +432,34 @@ public class UnharvestState {
 
                 if (json.has("unlockedNodes")) {
                     JsonArray arr = json.getAsJsonArray("unlockedNodes");
-                    unlockedNodes.clear();
-                    unlockedNodes.add("skull");
                     for (JsonElement el : arr) {
                         unlockedNodes.add(el.getAsString());
                     }
-                } else {
-                    // Legacy migration
-                    unlockedNodes.clear();
-                    unlockedNodes.add("skull");
-                    if (json.has("speedLevel")) {
-                        int spd = json.get("speedLevel").getAsInt();
-                        if (spd >= 1) unlockedNodes.add("scythe_speed_1");
-                        if (spd >= 2) unlockedNodes.add("scythe_speed_2");
-                        if (spd >= 3) unlockedNodes.add("scythe_speed_3");
-                        if (spd >= 4) unlockedNodes.add("scythe_speed_4");
-                        if (spd >= 5) unlockedNodes.add("scythe_mastery");
-                    }
-                    if (json.has("radiusLevel")) {
-                        int rad = json.get("radiusLevel").getAsInt();
-                        if (rad >= 1) unlockedNodes.add("scythe_radius_1");
-                        if (rad >= 2) unlockedNodes.add("scythe_radius_2");
-                        if (rad >= 3) unlockedNodes.add("scythe_radius_3");
-                        if (rad >= 4) unlockedNodes.add("scythe_radius_4");
-                    }
-                    if (json.has("yieldLevel")) {
-                        int yld = json.get("yieldLevel").getAsInt();
-                        if (yld >= 1) unlockedNodes.add("scythe_yield_1");
-                        if (yld >= 2) unlockedNodes.add("scythe_yield_2");
-                        if (yld >= 3) unlockedNodes.add("scythe_yield_3");
-                    }
-                    if (json.has("chainLevel") && json.get("chainLevel").getAsInt() >= 1) {
-                        unlockedNodes.add("spores_root");
-                    }
-                    if (json.has("swarmLevel") && json.get("swarmLevel").getAsInt() >= 1) {
-                        unlockedNodes.add("swarm_root");
-                    }
                 }
+            } catch (Exception e) {
+                Constants.LOG.error("Failed to load Unharvest world save data", e);
             }
-        } catch (Exception e) {
-            Constants.LOG.error("Failed to load Unharvest save data", e);
+        } else {
+            // Brand new world: clean blank slate, write initial unharvest_state.json
+            save();
         }
     }
 
+    public synchronized void unload() {
+        this.activeSaveFile = null;
+        this.essence = 0;
+        this.totalWithered = 0;
+        this.fieldTotalCrops = 0;
+        this.victoryShown = false;
+        this.unlockedNodes.clear();
+        this.unlockedNodes.add("skull");
+    }
+
     public synchronized void save() {
+        if (activeSaveFile == null) return;
         try {
-            if (SAVE_PATH.getParent() != null) {
-                Files.createDirectories(SAVE_PATH.getParent());
+            if (activeSaveFile.getParent() != null) {
+                Files.createDirectories(activeSaveFile.getParent());
             }
             JsonObject json = new JsonObject();
             json.addProperty("essence", essence);
@@ -476,9 +473,9 @@ public class UnharvestState {
             }
             json.add("unlockedNodes", arr);
 
-            Files.writeString(SAVE_PATH, GSON.toJson(json));
+            Files.writeString(activeSaveFile, GSON.toJson(json));
         } catch (Exception e) {
-            Constants.LOG.error("Failed to save Unharvest save data", e);
+            Constants.LOG.error("Failed to save Unharvest world save data", e);
         }
     }
 }

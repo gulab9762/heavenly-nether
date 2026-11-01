@@ -246,6 +246,7 @@ public class UnharvestFieldGenerator {
         if (serverLevel == null) return;
 
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
+        UnharvestState.getInstance().loadForWorld(saveDir);
         Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
 
         if (Files.exists(markerFile)) {
@@ -817,6 +818,7 @@ public class UnharvestFieldGenerator {
 
     public static void forceRegenerateField(MinecraftServer server, ServerLevel serverLevel, Player player) {
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
+        UnharvestState.getInstance().loadForWorld(saveDir);
         Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
         try {
             Files.deleteIfExists(markerFile);
