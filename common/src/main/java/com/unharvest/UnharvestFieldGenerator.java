@@ -34,8 +34,8 @@ import java.util.Locale;
  * with atmospheric farm structures (Dutch Windmill and rustic Farmer's Barn/House),
  * walking dirt paths, coarse dirt perimeter, and Peaceful difficulty.
  *
- * Updates the world progressively in chunks across ticks to eliminate lag spikes,
- * displaying real-time population percentages on the action bar and HUD.
+ * Expands progressively in concentric radial rings from the center outward across ticks
+ * so the world update and rendering pipeline handle every block effortlessly without lag spikes.
  */
 public class UnharvestFieldGenerator {
 
@@ -48,28 +48,28 @@ public class UnharvestFieldGenerator {
     public static final int HOUSE_X = -26;
     public static final int HOUSE_Z = 24;
 
-    // Chunked Asynchronous Generation State
-    public static class ChunkCoord {
+    // Concentric Radial Point Representation
+    public static class FieldPoint {
         public final int x;
         public final int z;
-        public final int distSq;
+        public final double dist;
 
-        public ChunkCoord(int x, int z) {
+        public FieldPoint(int x, int z, double dist) {
             this.x = x;
             this.z = z;
-            this.distSq = x * x + z * z;
+            this.dist = dist;
         }
     }
 
     private static boolean isGenerating = false;
     private static int totalPlacedCrops = 0;
-    private static final List<ChunkCoord> pendingChunks = new ArrayList<>();
-    private static int totalChunksToProcess = 0;
-    private static int processedChunksCount = 0;
+    private static final List<FieldPoint> pendingPoints = new ArrayList<>();
+    private static int totalPointsToProcess = 0;
+    private static int processedPointsCount = 0;
     private static int currentGroundY = 0;
     private static int currentCropY = 0;
     private static Path currentMarkerFile = null;
-    private static final int CHUNKS_PER_TICK = 3;
+    private static final int BLOCKS_PER_TICK = 250; // Smooth radial block rate (~3.5s total)
 
     public static class RescanResult {
         public final int total;
@@ -88,8 +88,8 @@ public class UnharvestFieldGenerator {
     }
 
     public static float getGenerationProgress() {
-        if (!isGenerating || totalChunksToProcess <= 0) return 1.0f;
-        return (float) processedChunksCount / (float) totalChunksToProcess;
+        if (!isGenerating || totalPointsToProcess <= 0) return 1.0f;
+        return (float) processedPointsCount / (float) totalPointsToProcess;
     }
 
     public static int getGenerationPercent() {
@@ -98,9 +98,9 @@ public class UnharvestFieldGenerator {
 
     public static void stopGeneration() {
         isGenerating = false;
-        pendingChunks.clear();
-        processedChunksCount = 0;
-        totalChunksToProcess = 0;
+        pendingPoints.clear();
+        processedPointsCount = 0;
+        totalPointsToProcess = 0;
     }
 
     /**
@@ -147,19 +147,20 @@ public class UnharvestFieldGenerator {
         return false;
     }
 
+    /**
+     * Bounding footprints for the structures and their aprons.
+     * Guaranteed to protect structures from air-clearing or crop replacement.
+     */
     public static boolean isInStructureFootprint(int x, int z) {
         // Windmill footprint
-        int dx = x - WINDMILL_X;
-        int dz = z - WINDMILL_Z;
-        if (dx * dx + dz * dz <= 25) {
+        if (x >= WINDMILL_X - 7 && x <= WINDMILL_X + 7 && z >= WINDMILL_Z - 6 && z <= WINDMILL_Z + 6) {
             return true;
         }
-        // Farmer's House & Porch footprint
-        int minX = HOUSE_X - 4;
-        int maxX = HOUSE_X + 4;
-        int minZ = HOUSE_Z - 3;
-        int maxZ = HOUSE_Z + 4;
-        return (x >= minX - 3 && x <= maxX + 3 && z >= minZ - 3 && z <= maxZ + 3);
+        // Farmer's House footprint (building, porch, chimney, roof overhangs, apron)
+        if (x >= HOUSE_X - 6 && x <= HOUSE_X + 6 && z >= HOUSE_Z - 6 && z <= HOUSE_Z + 6) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -200,9 +201,9 @@ public class UnharvestFieldGenerator {
     }
 
     /**
-     * Initializes non-blocking chunked generation:
-     * Teleports the player, constructs the structures, and enqueues chunks
-     * sorted outward from spawn to create a blooming wavefront without lag spikes.
+     * Initializes non-blocking radial generation:
+     * Teleports the player, constructs the complete structures, and enqueues all field coordinates
+     * sorted in exact radial distance order from (0, 0) to expand outward smoothly without lag spikes.
      */
     public static synchronized void startGeneration(MinecraftServer server, ServerLevel serverLevel, Path markerFile, Player player) {
         if (isGenerating) {
@@ -215,10 +216,10 @@ public class UnharvestFieldGenerator {
             return;
         }
 
-        Constants.LOG.info("[Unharvest] Starting progressive chunked field generation...");
+        Constants.LOG.info("[Unharvest] Starting concentric radial field generation...");
         isGenerating = true;
         totalPlacedCrops = 0;
-        processedChunksCount = 0;
+        processedPointsCount = 0;
         currentMarkerFile = markerFile;
 
         // Reset withered count so clearance begins at 0%
@@ -237,7 +238,7 @@ public class UnharvestFieldGenerator {
         }
 
         if (player != null) {
-            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting chunked field generation... populating field and constructing structures."));
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting radial field generation from center... expanding outward smoothly."));
             player.sendOverlayMessage(Component.literal("§5§l[Unharvest] §ePopulating plague field... §f0%"));
         }
 
@@ -245,26 +246,27 @@ public class UnharvestFieldGenerator {
         generateWindmill(serverLevel, currentGroundY);
         generateFarmerHouse(serverLevel, currentGroundY);
 
-        // 3. Enqueue and sort all chunks spanning the field radius
+        // 3. Enqueue and sort all field coordinates in exact distance order from center (0, 0)
         int maxScan = BASE_RADIUS + 18;
-        int minChunk = (-maxScan) >> 4; // -5
-        int maxChunk = (maxScan) >> 4;  // +5
+        pendingPoints.clear();
 
-        pendingChunks.clear();
-        for (int cx = minChunk; cx <= maxChunk; cx++) {
-            for (int cz = minChunk; cz <= maxChunk; cz++) {
-                pendingChunks.add(new ChunkCoord(cx, cz));
+        for (int x = -maxScan; x <= maxScan; x++) {
+            for (int z = -maxScan; z <= maxScan; z++) {
+                double dist = Math.sqrt(x * x + z * z);
+                if (dist <= maxScan + 2) {
+                    pendingPoints.add(new FieldPoint(x, z, dist));
+                }
             }
         }
 
-        // Sort by distance from center so field blooms outward smoothly
-        pendingChunks.sort(Comparator.comparingInt(c -> c.distSq));
-        totalChunksToProcess = pendingChunks.size();
+        // Sort in exact ascending order of distance from (0, 0)
+        pendingPoints.sort(Comparator.comparingDouble(p -> p.dist));
+        totalPointsToProcess = pendingPoints.size();
     }
 
     /**
-     * Ticks chunked field population across game ticks to eliminate lag spikes.
-     * Updates real-time progress text on the action bar.
+     * Ticks concentric radial field population across game ticks.
+     * Each tick processes a batch of coordinates expanding outward in concentric rings.
      */
     public static synchronized void tickGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
         if (!isGenerating) return;
@@ -276,67 +278,64 @@ public class UnharvestFieldGenerator {
         BlockState fenceState = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState lanternState = Blocks.LANTERN.defaultBlockState();
 
-        int maxScan = BASE_RADIUS + 18;
-        int chunksThisTick = Math.min(CHUNKS_PER_TICK, pendingChunks.size());
+        int pointsThisTick = Math.min(BLOCKS_PER_TICK, pendingPoints.size());
 
-        for (int i = 0; i < chunksThisTick; i++) {
-            ChunkCoord coord = pendingChunks.remove(0);
-            processedChunksCount++;
+        for (int i = 0; i < pointsThisTick; i++) {
+            FieldPoint pt = pendingPoints.remove(0);
+            processedPointsCount++;
 
-            int startX = coord.x * 16;
-            int startZ = coord.z * 16;
+            int x = pt.x;
+            int z = pt.z;
+            double dist = pt.dist;
 
-            for (int x = startX; x < startX + 16; x++) {
-                if (x < -maxScan || x > maxScan) continue;
-                for (int z = startZ; z < startZ + 16; z++) {
-                    if (z < -maxScan || z > maxScan) continue;
+            // CRITICAL FIX: Skip structure footprints IMMEDIATELY before any air-clearing or modifications!
+            // This prevents the air clearing loop from slicing off the farmhouse roof or windmill tower!
+            if (isInStructureFootprint(x, z)) {
+                continue;
+            }
 
-                    // Clear any debris or trial chambers above the crop level
-                    for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
-                        BlockPos abovePos = new BlockPos(x, clearY, z);
-                        if (!serverLevel.getBlockState(abovePos).isAir()) {
-                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
-                        }
-                    }
+            // Path handling
+            if (isPath(x, z)) {
+                BlockPos floorPos = new BlockPos(x, currentGroundY, z);
+                BlockPos cropPos = new BlockPos(x, currentCropY, z);
+                serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
+                serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
+                continue;
+            }
 
-                    double dist = Math.sqrt(x * x + z * z);
-                    double angle = Math.atan2(z, x);
+            // Clear any debris or floating structures above the field
+            for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
+                BlockPos abovePos = new BlockPos(x, clearY, z);
+                if (!serverLevel.getBlockState(abovePos).isAir()) {
+                    serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                }
+            }
 
-                    double shapeRadius = BASE_RADIUS * (1.0
-                            + 0.25 * Math.sin(3.0 * angle + 0.8)
-                            + 0.16 * Math.cos(5.0 * angle - 1.2)
-                            + 0.12 * Math.sin(2.0 * angle + 2.1)
-                            + 0.08 * Math.cos(7.0 * angle)
-                    ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
+            double angle = Math.atan2(z, x);
+            double shapeRadius = BASE_RADIUS * (1.0
+                    + 0.25 * Math.sin(3.0 * angle + 0.8)
+                    + 0.16 * Math.cos(5.0 * angle - 1.2)
+                    + 0.12 * Math.sin(2.0 * angle + 2.1)
+                    + 0.08 * Math.cos(7.0 * angle)
+            ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
 
-                    BlockPos floorPos = new BlockPos(x, currentGroundY, z);
-                    BlockPos cropPos = new BlockPos(x, currentCropY, z);
+            BlockPos floorPos = new BlockPos(x, currentGroundY, z);
+            BlockPos cropPos = new BlockPos(x, currentCropY, z);
 
-                    if (dist <= shapeRadius) {
-                        if (isInStructureFootprint(x, z)) {
-                            continue;
-                        }
+            if (dist <= shapeRadius) {
+                // Inside the wheat field: place farmland and mature wheat (replaces any old wither roses!)
+                serverLevel.setBlock(floorPos, moistFarmland, 2);
+                serverLevel.setBlock(cropPos, matureWheat, 2);
+                totalPlacedCrops++;
+            } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
+                serverLevel.setBlock(floorPos, coarseDirt, 2);
+                if (!serverLevel.getBlockState(cropPos).isAir()) {
+                    serverLevel.removeBlock(cropPos, false);
+                }
 
-                        if (isPath(x, z)) {
-                            serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
-                            serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
-                            continue;
-                        }
-
-                        serverLevel.setBlock(floorPos, moistFarmland, 2);
-                        serverLevel.setBlock(cropPos, matureWheat, 2);
-                        totalPlacedCrops++;
-                    } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
-                        serverLevel.setBlock(floorPos, coarseDirt, 2);
-                        if (!serverLevel.getBlockState(cropPos).isAir()) {
-                            serverLevel.removeBlock(cropPos, false);
-                        }
-
-                        if (Math.abs(x * 31 + z * 17) % 12 == 0) {
-                            serverLevel.setBlock(cropPos, fenceState, 2);
-                            serverLevel.setBlock(cropPos.above(), lanternState, 2);
-                        }
-                    }
+                if (Math.abs(x * 31 + z * 17) % 12 == 0) {
+                    serverLevel.setBlock(cropPos, fenceState, 2);
+                    serverLevel.setBlock(cropPos.above(), lanternState, 2);
                 }
             }
         }
@@ -351,13 +350,17 @@ public class UnharvestFieldGenerator {
         }
 
         // Completion check
-        if (pendingChunks.isEmpty()) {
+        if (pendingPoints.isEmpty()) {
             isGenerating = false;
             finishGeneration(server, serverLevel, player);
         }
     }
 
     private static void finishGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
+        // Ensure structures are pristine
+        generateWindmill(serverLevel, currentGroundY);
+        generateFarmerHouse(serverLevel, currentGroundY);
+
         UnharvestState state = UnharvestState.getInstance();
         state.setFieldStats(totalPlacedCrops, 0);
 
@@ -374,7 +377,7 @@ public class UnharvestFieldGenerator {
             }
         }
 
-        Constants.LOG.info("[Unharvest] Finished chunked field generation with {} crops!", totalPlacedCrops);
+        Constants.LOG.info("[Unharvest] Finished radial field generation with {} crops!", totalPlacedCrops);
 
         if (player != null) {
             player.sendSystemMessage(Component.literal(String.format(
@@ -410,7 +413,7 @@ public class UnharvestFieldGenerator {
         BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
         BlockState gravel = Blocks.GRAVEL.defaultBlockState();
 
-        // 1. Foundation apron
+        // 1. Foundation apron and air clearing
         for (int dx = -5; dx <= 5; dx++) {
             for (int dz = -5; dz <= 5; dz++) {
                 if (dx * dx + dz * dz <= 24) {
@@ -531,7 +534,7 @@ public class UnharvestFieldGenerator {
             level.setBlock(new BlockPos(bx, hubY + 1, rotorZ), whiteWool, 2);
         }
 
-        // 7. Interior furnishings (Hay bales, barrels, lantern)
+        // 7. Interior furnishings (Hay bales, barrels, hanging lantern)
         level.setBlock(new BlockPos(cx - 1, groundY + 1, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
         level.setBlock(new BlockPos(cx - 1, groundY + 2, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
         level.setBlock(new BlockPos(cx + 1, groundY + 1, cz - 1), Blocks.BARREL.defaultBlockState(), 2);
