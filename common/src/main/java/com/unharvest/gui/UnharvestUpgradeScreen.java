@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -40,12 +41,27 @@ public class UnharvestUpgradeScreen extends Screen {
         int centerX = this.width / 2;
         int bottomY = this.height - 28;
 
-        // Reset Button (Bottom Left)
+        // Reset Button (Bottom Left) - Prompts confirmation to prevent accidental resets
         addRenderableWidget(Button.builder(
                 Component.literal("§cReset All"),
                 btn -> {
-                    UnharvestState.getInstance().resetAll();
-                    playUpgradeSound();
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreenAndShow(new ConfirmScreen(
+                                confirmed -> {
+                                    if (confirmed) {
+                                        UnharvestState.getInstance().resetAll();
+                                        playUpgradeSound();
+                                    }
+                                    if (this.minecraft != null) {
+                                        this.minecraft.setScreenAndShow(this);
+                                    }
+                                },
+                                Component.literal("§4§lReset All Upgrades?"),
+                                Component.literal("§cThis will permanently reset all unlocked upgrades and Blight Essence back to zero!\n\n§7Are you sure you want to proceed?"),
+                                Component.literal("§c§lReset All"),
+                                CommonComponents.GUI_CANCEL
+                        ));
+                    }
                 }
         ).bounds(centerX - 140, bottomY, 90, 20).build());
 

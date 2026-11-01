@@ -72,7 +72,7 @@ public class UnharvestFieldGenerator {
     private static int currentGroundY = 0;
     private static int currentCropY = 0;
     private static Path currentMarkerFile = null;
-    private static final int BLOCKS_PER_TICK = 50; // Smooth radial block rate (~9s total, zero lag)
+    private static final int BLOCKS_PER_TICK = 150; // Smooth radial block rate (~9s total, zero lag)
 
     public static class RescanResult {
         public final int total;
