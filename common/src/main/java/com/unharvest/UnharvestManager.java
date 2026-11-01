@@ -2,6 +2,7 @@ package com.unharvest;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.unharvest.gui.UnharvestUpgradeScreen;
+import com.unharvest.gui.UnharvestVictoryScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -450,6 +451,12 @@ public class UnharvestManager {
             }
             lastUpgradeAvailable = currentlyAvailable;
         }
+
+        // 5. 100% Field Clearance Victory Popup
+        if (state.isFieldCompleted() && !state.isVictoryShown()) {
+            state.setVictoryShown(true);
+            openVictoryScreen();
+        }
     }
 
     private static void tickWitherQueue(Level level, Player player) {
@@ -643,5 +650,10 @@ public class UnharvestManager {
     public static void openUpgradesScreen() {
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> client.setScreenAndShow(new UnharvestUpgradeScreen(client.gui.screen())));
+    }
+
+    public static void openVictoryScreen() {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> client.setScreenAndShow(new UnharvestVictoryScreen(client.gui.screen())));
     }
 }

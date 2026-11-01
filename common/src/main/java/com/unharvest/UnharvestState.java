@@ -166,6 +166,7 @@ public class UnharvestState {
 
     // Set of unlocked node IDs
     private final Set<String> unlockedNodes = new HashSet<>();
+    private boolean victoryShown = false;
 
     public static UnharvestState getInstance() {
         return INSTANCE;
@@ -217,7 +218,23 @@ public class UnharvestState {
 
     public synchronized void setTotalWithered(int count) {
         this.totalWithered = Math.min(fieldTotalCrops, Math.max(0, count));
+        if (count == 0) {
+            this.victoryShown = false;
+        }
         save();
+    }
+
+    public synchronized boolean isVictoryShown() {
+        return victoryShown;
+    }
+
+    public synchronized void setVictoryShown(boolean victoryShown) {
+        this.victoryShown = victoryShown;
+        save();
+    }
+
+    public synchronized boolean isFieldCompleted() {
+        return fieldTotalCrops > 0 && totalWithered >= fieldTotalCrops;
     }
 
     public synchronized void setFieldStats(int totalCrops, int totalWithered) {
@@ -380,6 +397,7 @@ public class UnharvestState {
     public synchronized void resetAll() {
         this.essence = 0;
         this.totalWithered = 0;
+        this.victoryShown = false;
         this.unlockedNodes.clear();
         this.unlockedNodes.add("skull");
         save();
@@ -394,6 +412,7 @@ public class UnharvestState {
                 if (json.has("essence")) essence = json.get("essence").getAsLong();
                 if (json.has("totalWithered")) totalWithered = json.get("totalWithered").getAsInt();
                 if (json.has("fieldTotalCrops")) fieldTotalCrops = json.get("fieldTotalCrops").getAsInt();
+                if (json.has("victoryShown")) victoryShown = json.get("victoryShown").getAsBoolean();
 
                 if (json.has("unlockedNodes")) {
                     JsonArray arr = json.getAsJsonArray("unlockedNodes");
@@ -449,6 +468,7 @@ public class UnharvestState {
             json.addProperty("essence", essence);
             json.addProperty("totalWithered", totalWithered);
             json.addProperty("fieldTotalCrops", fieldTotalCrops);
+            json.addProperty("victoryShown", victoryShown);
 
             JsonArray arr = new JsonArray();
             for (String node : unlockedNodes) {
