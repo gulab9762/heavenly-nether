@@ -58,9 +58,14 @@ public class UnharvestItems {
 
     /**
      * Ensures the player possesses a Withering Scythe in their inventory.
+     * Strictly delivers only if player is in an Unharvest world.
      */
     public static void ensurePlayerHasScythe(Player player) {
         if (player == null) return;
+
+        if (!UnharvestManager.isUnharvestWorld(player.level())) {
+            return;
+        }
 
         // Check if already in inventory
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {

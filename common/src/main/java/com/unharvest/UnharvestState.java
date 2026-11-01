@@ -19,17 +19,16 @@ public class UnharvestState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final UnharvestState INSTANCE = new UnharvestState();
 
-    public static final int FIELD_TOTAL_CROPS = 4096; // 64x64 wheat arena
-
     // Currency and Progress
     private long essence = 0;
     private int totalWithered = 0;
+    private int fieldTotalCrops = 3500; // Updated dynamically from generated village field
 
     // Upgrades
     private int speedLevel = 0;     // Max 5: Scythe swing cooldown
     private int radiusLevel = 0;    // Max 4: Wither AoE spread
     private int yieldLevel = 0;     // Max 4: Essence multiplier per crop
-    private int chainLevel = 0;     // Max 4: Contagion chain-reaction chance
+    private int chainLevel = 0;     // Max 4: Contagion (Spores) chain-reaction chance
     private int swarmLevel = 0;     // Max 4: Locust Swarm idle auto-withering
 
     public static UnharvestState getInstance() {
@@ -50,6 +49,7 @@ public class UnharvestState {
     }
 
     public synchronized boolean spendEssence(long cost) {
+        if (cost <= 0) return false;
         if (this.essence >= cost) {
             this.essence -= cost;
             save();
@@ -63,12 +63,24 @@ public class UnharvestState {
     }
 
     public synchronized void recordWithered(int count) {
-        this.totalWithered = Math.min(FIELD_TOTAL_CROPS, this.totalWithered + count);
+        this.totalWithered = Math.min(fieldTotalCrops, this.totalWithered + count);
         save();
     }
 
+    public synchronized int getFieldTotalCrops() {
+        return fieldTotalCrops;
+    }
+
+    public synchronized void setFieldTotalCrops(int count) {
+        if (count > 0) {
+            this.fieldTotalCrops = count;
+            save();
+        }
+    }
+
     public synchronized float getClearedPercentage() {
-        return Math.min(100.0f, ((float) totalWithered / (float) FIELD_TOTAL_CROPS) * 100.0f);
+        if (fieldTotalCrops <= 0) return 0.0f;
+        return Math.min(100.0f, ((float) totalWithered / (float) fieldTotalCrops) * 100.0f);
     }
 
     public String getFormattedEssence() {
@@ -80,7 +92,7 @@ public class UnharvestState {
         return String.valueOf(essence);
     }
 
-    // --- UPGRADE STATS & COSTS ---
+    // --- UPGRADE STATS & COSTS (Balanced as per original Unharvest game) ---
 
     // 1. Scythe Speed (Cooldown Ticks: 20 -> 15 -> 10 -> 6 -> 3 -> 1)
     public int getSpeedLevel() { return speedLevel; }
@@ -98,10 +110,10 @@ public class UnharvestState {
     public long getSpeedCost() {
         return switch (speedLevel) {
             case 0 -> 10;
-            case 1 -> 35;
-            case 2 -> 100;
-            case 3 -> 300;
-            case 4 -> 800;
+            case 1 -> 50;
+            case 2 -> 200;
+            case 3 -> 750;
+            case 4 -> 2500;
             default -> -1; // Maxed
         };
     }
@@ -121,9 +133,9 @@ public class UnharvestState {
     public long getRadiusCost() {
         return switch (radiusLevel) {
             case 0 -> 25;
-            case 1 -> 90;
-            case 2 -> 300;
-            case 3 -> 1000;
+            case 1 -> 125;
+            case 2 -> 500;
+            case 3 -> 1800;
             default -> -1;
         };
     }
@@ -136,24 +148,24 @@ public class UnharvestState {
         return false;
     }
 
-    // 3. Essence Multiplier (Yield: 1x -> 2x -> 4x -> 8x -> 16x)
+    // 3. Essence Multiplier (Yield: 1x -> 2x -> 3x -> 5x -> 10x)
     public int getYieldLevel() { return yieldLevel; }
     public int getMaxYieldLevel() { return 4; }
     public int getYieldMultiplier() {
         return switch (yieldLevel) {
             case 1 -> 2;
-            case 2 -> 4;
-            case 3 -> 8;
-            case 4 -> 16;
+            case 2 -> 3;
+            case 3 -> 5;
+            case 4 -> 10;
             default -> 1;
         };
     }
     public long getYieldCost() {
         return switch (yieldLevel) {
-            case 0 -> 20;
-            case 1 -> 75;
-            case 2 -> 250;
-            case 3 -> 750;
+            case 0 -> 15;
+            case 1 -> 80;
+            case 2 -> 350;
+            case 3 -> 1200;
             default -> -1;
         };
     }
@@ -166,24 +178,25 @@ public class UnharvestState {
         return false;
     }
 
-    // 4. Contagion (Chain Reaction Chance: 0% -> 20% -> 40% -> 65% -> 90%)
+    // 4. Contagion / Spores (Chain Reaction: 0% -> 25% -> 45% -> 65% -> 85%)
+    // In Unharvest, Spores is unlocked for 100 points
     public int getChainLevel() { return chainLevel; }
     public int getMaxChainLevel() { return 4; }
     public float getContagionChance() {
         return switch (chainLevel) {
-            case 1 -> 0.20f;
-            case 2 -> 0.40f;
+            case 1 -> 0.25f;
+            case 2 -> 0.45f;
             case 3 -> 0.65f;
-            case 4 -> 0.90f;
+            case 4 -> 0.85f;
             default -> 0.0f;
         };
     }
     public long getChainCost() {
         return switch (chainLevel) {
-            case 0 -> 40;
-            case 1 -> 120;
-            case 2 -> 350;
-            case 3 -> 900;
+            case 0 -> 100;
+            case 1 -> 300;
+            case 2 -> 900;
+            case 3 -> 2500;
             default -> -1;
         };
     }
@@ -219,10 +232,10 @@ public class UnharvestState {
     }
     public long getSwarmCost() {
         return switch (swarmLevel) {
-            case 0 -> 50;
-            case 1 -> 150;
-            case 2 -> 450;
-            case 3 -> 1200;
+            case 0 -> 250;
+            case 1 -> 800;
+            case 2 -> 2400;
+            case 3 -> 6000;
             default -> -1;
         };
     }
@@ -255,6 +268,7 @@ public class UnharvestState {
                 JsonObject json = JsonParser.parseString(content).getAsJsonObject();
                 if (json.has("essence")) essence = json.get("essence").getAsLong();
                 if (json.has("totalWithered")) totalWithered = json.get("totalWithered").getAsInt();
+                if (json.has("fieldTotalCrops")) fieldTotalCrops = json.get("fieldTotalCrops").getAsInt();
                 if (json.has("speedLevel")) speedLevel = json.get("speedLevel").getAsInt();
                 if (json.has("radiusLevel")) radiusLevel = json.get("radiusLevel").getAsInt();
                 if (json.has("yieldLevel")) yieldLevel = json.get("yieldLevel").getAsInt();
@@ -274,6 +288,7 @@ public class UnharvestState {
             JsonObject json = new JsonObject();
             json.addProperty("essence", essence);
             json.addProperty("totalWithered", totalWithered);
+            json.addProperty("fieldTotalCrops", fieldTotalCrops);
             json.addProperty("speedLevel", speedLevel);
             json.addProperty("radiusLevel", radiusLevel);
             json.addProperty("yieldLevel", yieldLevel);

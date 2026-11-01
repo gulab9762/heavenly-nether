@@ -71,7 +71,7 @@ public class UnharvestUpgradeScreen extends Screen {
                 }
         ).bounds(centerX - buttonWidth / 2, startY + spacing * 2, buttonWidth, buttonHeight).build());
 
-        // 4. Contagion Chain
+        // 4. Contagion / Spores Chain
         this.chainBtn = addRenderableWidget(Button.builder(
                 getChainText(state),
                 btn -> {
@@ -167,9 +167,12 @@ public class UnharvestUpgradeScreen extends Screen {
     private Component getChainText(UnharvestState state) {
         int pct = (int) (state.getContagionChance() * 100);
         if (state.getChainLevel() >= state.getMaxChainLevel()) {
-            return Component.literal("§2☣️ Contagion Chain: §aMAX §7(" + pct + "%)");
+            return Component.literal("§2☣️ Spores Spread: §aMAX §7(" + pct + "%)");
         }
-        return Component.literal("§2☣️ Contagion Chain: §fLvl " + state.getChainLevel() + "/" + state.getMaxChainLevel() + " §7(" + pct + "%) §d- " + state.getChainCost() + " Essence");
+        if (state.getChainLevel() == 0) {
+            return Component.literal("§2☣️ Spores Spread: §8Locked §d- " + state.getChainCost() + " Essence");
+        }
+        return Component.literal("§2☣️ Spores Spread: §fLvl " + state.getChainLevel() + "/" + state.getMaxChainLevel() + " §7(" + pct + "%) §d- " + state.getChainCost() + " Essence");
     }
 
     private Component getSwarmText(UnharvestState state) {
@@ -206,7 +209,7 @@ public class UnharvestUpgradeScreen extends Screen {
         extractor.centeredText(
                 this.font,
                 Component.literal(String.format("§a🌿 Field Cleared: §f%d / %d (§a%.1f%%§f)",
-                        state.getTotalWithered(), UnharvestState.FIELD_TOTAL_CROPS, state.getClearedPercentage())),
+                        state.getTotalWithered(), state.getFieldTotalCrops(), state.getClearedPercentage())),
                 this.width / 2, 38, 0xAAFFAA
         );
 

@@ -8,6 +8,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -19,13 +21,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.storage.LevelResource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
  * Core manager for the Unharvest reverse-farming gameplay mechanics:
- * Withering Scythe interactions, cooldown gating, radius contagion,
- * Locust Swarm automation, and field status tracking.
+ * world validation (Unharvest world only), Withering Scythe interactions,
+ * cooldown gating, radius contagion, Locust Swarm automation, and field status tracking.
  */
 public class UnharvestManager {
 
@@ -36,15 +42,74 @@ public class UnharvestManager {
     );
 
     private static long clientTickCount = 0;
+    private static Boolean cachedIsUnharvestWorld = null;
+    private static String cachedWorldName = null;
+
+    /**
+     * Checks if the active world is an Unharvest world.
+     * Returns false for standard vanilla worlds so Unharvest stays dormant and gives no scythe.
+     */
+    public static boolean isUnharvestWorld(Level level) {
+        if (level == null) return false;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        MinecraftServer server = minecraft.getSingleplayerServer();
+
+        if (server == null) {
+            return cachedIsUnharvestWorld != null && cachedIsUnharvestWorld;
+        }
+
+        String worldName = server.getWorldData().getLevelName();
+        if (cachedIsUnharvestWorld != null && Objects.equals(cachedWorldName, worldName)) {
+            return cachedIsUnharvestWorld;
+        }
+
+        cachedWorldName = worldName;
+        Path saveDir = server.getWorldPath(LevelResource.ROOT);
+
+        // 1. Check if unharvest marker files exist in the world save folder
+        if (Files.exists(saveDir.resolve("unharvest_world.json")) || Files.exists(saveDir.resolve("unharvest_field_generated.json"))) {
+            cachedIsUnharvestWorld = true;
+            return true;
+        }
+
+        // 2. Check if chunk generator uses the unharvest_overworld noise settings
+        ServerLevel overworld = server.overworld();
+        if (overworld != null && overworld.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator noiseGen) {
+            String settingsKey = noiseGen.generatorSettings()
+                    .unwrapKey()
+                    .map(k -> k.identifier().toString())
+                    .orElse("");
+
+            if ("unharvest:unharvest_overworld".equals(settingsKey)) {
+                cachedIsUnharvestWorld = true;
+                try {
+                    Files.writeString(saveDir.resolve("unharvest_world.json"), "{\"unharvest\": true}");
+                } catch (Exception ignored) {}
+                return true;
+            }
+        }
+
+        cachedIsUnharvestWorld = false;
+        return false;
+    }
+
+    public static void clearWorldCache() {
+        cachedIsUnharvestWorld = null;
+        cachedWorldName = null;
+        UnharvestFieldGenerator.clearCache();
+    }
 
     /**
      * Called when the player left-clicks (attacks/punches) a block.
      * Intercepts wheat punches with the Withering Scythe and converts crops into Wither Roses.
-     *
-     * @return true if the event was consumed and standard block breaking should be cancelled.
      */
     public static boolean onLeftClickBlock(Level level, Player player, BlockPos pos, Direction direction) {
         if (level == null || player == null || pos == null) {
+            return false;
+        }
+
+        if (!isUnharvestWorld(level)) {
             return false;
         }
 
@@ -84,15 +149,19 @@ public class UnharvestManager {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     if (dx == 0 && dz == 0) continue;
-                    BlockPos neighbor = pos.offset(dx, 0, dz);
-                    if (isCrop(level.getBlockState(neighbor))) {
-                        toWither.add(neighbor.immutable());
+                    // Check around same height
+                    for (int dy = -2; dy <= 2; dy++) {
+                        BlockPos neighbor = pos.offset(dx, dy, dz);
+                        if (isCrop(level.getBlockState(neighbor))) {
+                            toWither.add(neighbor.immutable());
+                            break;
+                        }
                     }
                 }
             }
         }
 
-        // 2. Contagion Chain-Reaction
+        // 2. Contagion (Spores) Chain-Reaction
         float contagionChance = state.getContagionChance();
         if (contagionChance > 0.0f) {
             RandomSource rand = level.getRandom();
@@ -100,9 +169,12 @@ public class UnharvestManager {
             for (BlockPos target : toWither) {
                 if (rand.nextFloat() < contagionChance) {
                     for (Direction dir : Direction.Plane.HORIZONTAL) {
-                        BlockPos side = target.relative(dir);
-                        if (!toWither.contains(side) && isCrop(level.getBlockState(side))) {
-                            chained.add(side.immutable());
+                        for (int dy = -1; dy <= 1; dy++) {
+                            BlockPos side = target.relative(dir).above(dy);
+                            if (!toWither.contains(side) && isCrop(level.getBlockState(side))) {
+                                chained.add(side.immutable());
+                                break;
+                            }
                         }
                     }
                 }
@@ -150,7 +222,11 @@ public class UnharvestManager {
      * Opens the Unharvest Plague Upgrades Menu when holding the Withering Scythe.
      */
     public static boolean onRightClick(Level level, Player player, InteractionHand hand) {
-        if (player == null) return false;
+        if (player == null || level == null) return false;
+
+        if (!isUnharvestWorld(level)) {
+            return false;
+        }
 
         ItemStack stack = player.getItemInHand(hand);
         if (UnharvestItems.isWitheringScythe(stack)) {
@@ -163,9 +239,15 @@ public class UnharvestManager {
 
     /**
      * Ticks idle automation (Locust Swarm), verifies field setup, and listens for keybinds.
+     * Strictly runs only in Unharvest worlds.
      */
     public static void tick(Level level, Player player) {
         if (level == null || player == null) return;
+
+        if (!isUnharvestWorld(level)) {
+            return;
+        }
+
         clientTickCount++;
 
         // Listen for Upgrade Keybind [U]
@@ -173,7 +255,7 @@ public class UnharvestManager {
             openUpgradesScreen();
         }
 
-        // 1. Initial field setup and scythe verification
+        // 1. Initial village field setup and scythe verification
         if (clientTickCount % 40 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
             UnharvestItems.ensurePlayerHasScythe(player);
@@ -187,21 +269,23 @@ public class UnharvestManager {
     }
 
     /**
-     * Periodic passive locust swarm that auto-seeks and withers nearby wheat.
+     * Periodic passive locust swarm that auto-seeks and withers nearby crops across rolling terrain.
      */
     private static void tickLocustSwarm(Level level, Player player, UnharvestState state) {
         int countToWither = state.getSwarmWitherCount();
         BlockPos playerPos = player.blockPosition();
-        int wheatY = UnharvestFieldGenerator.getWheatY(level);
 
         List<BlockPos> candidates = new ArrayList<>();
         int searchRadius = 24;
 
         for (int x = -searchRadius; x <= searchRadius; x++) {
             for (int z = -searchRadius; z <= searchRadius; z++) {
-                BlockPos check = new BlockPos(playerPos.getX() + x, wheatY, playerPos.getZ() + z);
-                if (isCrop(level.getBlockState(check))) {
-                    candidates.add(check);
+                for (int dy = -4; dy <= 4; dy++) {
+                    BlockPos check = new BlockPos(playerPos.getX() + x, playerPos.getY() + dy, playerPos.getZ() + z);
+                    if (isCrop(level.getBlockState(check))) {
+                        candidates.add(check);
+                        break;
+                    }
                 }
             }
         }

@@ -46,6 +46,7 @@ public class TreeShakeNeoForge {
         @SubscribeEvent
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             TreeShakeManager.clear();
+            UnharvestManager.clearWorldCache();
         }
 
         @SubscribeEvent
@@ -75,7 +76,7 @@ public class TreeShakeNeoForge {
             event.getDispatcher().register(
                     Commands.literal("unharvest")
                             .then(Commands.literal("upgrades")
-                                    .executes(context -> UnharvestCommands.openUpgrades())
+                                    .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
                             )
                             .then(Commands.literal("scythe")
                                     .executes(context -> UnharvestCommands.giveScythe(Minecraft.getInstance().player))
@@ -83,7 +84,7 @@ public class TreeShakeNeoForge {
                             .then(Commands.literal("reset")
                                     .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
                             )
-                            .executes(context -> UnharvestCommands.openUpgrades())
+                            .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );
         }
 

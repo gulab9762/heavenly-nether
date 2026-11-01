@@ -36,9 +36,10 @@ public class TreeShakeFabricClient implements ClientModInitializer {
             }
         });
 
-        // Reset animations on disconnect
+        // Reset animations and world cache on disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             TreeShakeManager.clear();
+            UnharvestManager.clearWorldCache();
         });
 
         // Register client commands
@@ -66,7 +67,7 @@ public class TreeShakeFabricClient implements ClientModInitializer {
             dispatcher.register(
                     ClientCommands.literal("unharvest")
                             .then(ClientCommands.literal("upgrades")
-                                    .executes(context -> UnharvestCommands.openUpgrades())
+                                    .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
                             )
                             .then(ClientCommands.literal("scythe")
                                     .executes(context -> UnharvestCommands.giveScythe(Minecraft.getInstance().player))
@@ -74,7 +75,7 @@ public class TreeShakeFabricClient implements ClientModInitializer {
                             .then(ClientCommands.literal("reset")
                                     .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
                             )
-                            .executes(context -> UnharvestCommands.openUpgrades())
+                            .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );
         });
     }
