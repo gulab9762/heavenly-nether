@@ -9,7 +9,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -21,7 +20,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.storage.LevelResource;
 
 import java.nio.file.Files;
@@ -30,8 +28,8 @@ import java.util.*;
 
 /**
  * Core manager for the Unharvest reverse-farming gameplay mechanics:
- * world validation (Unharvest world only), Withering Scythe interactions,
- * cooldown gating, radius contagion, Locust Swarm automation, and field status tracking.
+ * world validation, delayed visual contagion spread, corrupted soil generation,
+ * cooldown gating, and Locust Swarm automation.
  */
 public class UnharvestManager {
 
@@ -42,12 +40,31 @@ public class UnharvestManager {
     );
 
     private static long clientTickCount = 0;
+    private static boolean nextWorldIsUnharvest = false;
     private static Boolean cachedIsUnharvestWorld = null;
     private static String cachedWorldName = null;
 
+    // Delayed Contagion Wave Queue for smooth visual spreading
+    private static class ScheduledWither {
+        final BlockPos pos;
+        int delayTicks;
+
+        ScheduledWither(BlockPos pos, int delayTicks) {
+            this.pos = pos;
+            this.delayTicks = delayTicks;
+        }
+    }
+
+    private static final List<ScheduledWither> WITHER_QUEUE = new ArrayList<>();
+    private static final Set<BlockPos> PENDING_POSITIONS = new HashSet<>();
+
+    public static void markNextWorldAsUnharvest() {
+        nextWorldIsUnharvest = true;
+    }
+
     /**
      * Checks if the active world is an Unharvest world.
-     * Returns false for standard vanilla worlds so Unharvest stays dormant and gives no scythe.
+     * Keeps Unharvest completely dormant in regular survival worlds.
      */
     public static boolean isUnharvestWorld(Level level) {
         if (level == null) return false;
@@ -67,25 +84,28 @@ public class UnharvestManager {
         cachedWorldName = worldName;
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
 
-        // 1. Check if unharvest marker files exist in the world save folder
+        // 1. World created via Unharvest preset
+        if (nextWorldIsUnharvest) {
+            nextWorldIsUnharvest = false;
+            cachedIsUnharvestWorld = true;
+            try {
+                Files.writeString(saveDir.resolve("unharvest_world.json"), "{\"unharvest\": true}");
+            } catch (Exception ignored) {}
+            return true;
+        }
+
+        // 2. Check if unharvest marker files exist in save directory
         if (Files.exists(saveDir.resolve("unharvest_world.json")) || Files.exists(saveDir.resolve("unharvest_field_generated.json"))) {
             cachedIsUnharvestWorld = true;
             return true;
         }
 
-        // 2. Check if chunk generator uses the unharvest_overworld noise settings
-        ServerLevel overworld = server.overworld();
-        if (overworld != null && overworld.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator noiseGen) {
-            String settingsKey = noiseGen.generatorSettings()
-                    .unwrapKey()
-                    .map(k -> k.identifier().toString())
-                    .orElse("");
-
-            if ("unharvest:unharvest_overworld".equals(settingsKey)) {
+        // 3. Fallback: Check if wheat/wither rose is present at spawn in flat world
+        if (server.getWorldData().isFlatWorld()) {
+            int checkY = UnharvestFieldGenerator.getWheatY(level);
+            BlockState checkState = level.getBlockState(new BlockPos(0, checkY, 0));
+            if (checkState.is(Blocks.WHEAT) || checkState.is(Blocks.WITHER_ROSE)) {
                 cachedIsUnharvestWorld = true;
-                try {
-                    Files.writeString(saveDir.resolve("unharvest_world.json"), "{\"unharvest\": true}");
-                } catch (Exception ignored) {}
                 return true;
             }
         }
@@ -97,12 +117,13 @@ public class UnharvestManager {
     public static void clearWorldCache() {
         cachedIsUnharvestWorld = null;
         cachedWorldName = null;
-        UnharvestFieldGenerator.clearCache();
+        WITHER_QUEUE.clear();
+        PENDING_POSITIONS.clear();
     }
 
     /**
-     * Called when the player left-clicks (attacks/punches) a block.
-     * Intercepts wheat punches with the Withering Scythe and converts crops into Wither Roses.
+     * Intercepts left-clicks on crops with the Withering Scythe.
+     * Withers the primary crop instantly and cascades surrounding/chained crops in delayed waves.
      */
     public static boolean onLeftClickBlock(Level level, Player player, BlockPos pos, Direction direction) {
         if (level == null || player == null || pos == null) {
@@ -129,104 +150,95 @@ public class UnharvestManager {
 
         // Anti-spam cooldown check
         if (player.getCooldowns().isOnCooldown(heldItem)) {
-            return true; // Cancel block breaking so player cannot spam
+            return true; // Prevent player from spamming normal block breaking
         }
 
         UnharvestState state = UnharvestState.getInstance();
 
-        // Apply scythe cooldown
+        // Apply scythe cooldown and swing animation
         int cooldownTicks = state.getCooldownTicks();
         player.getCooldowns().addCooldown(heldItem, cooldownTicks);
         player.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
 
-        // Track all blocks withered in this strike
-        Set<BlockPos> toWither = new LinkedHashSet<>();
-        toWither.add(pos.immutable());
+        // 1. Immediate primary strike
+        witherCrop(level, pos);
+        long earned = state.getYieldMultiplier();
+        state.addEssence(earned);
+        state.recordWithered(1);
 
-        // 1. Wither Radius (AoE reach)
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
+                0.35f, 1.8f, false
+        );
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
+                0.8f, 0.7f, false
+        );
+
+        // 2. Queue AoE Radius crops in gradual delay waves
         int radius = state.getRadius();
         if (radius > 0) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    // Check around same height
-                    for (int dy = -2; dy <= 2; dy++) {
-                        BlockPos neighbor = pos.offset(dx, dy, dz);
-                        if (isCrop(level.getBlockState(neighbor))) {
-                            toWither.add(neighbor.immutable());
-                            break;
+            for (int r = 1; r <= radius; r++) {
+                int delay = r * 2; // 2 ticks per radius ring for smooth visual wave
+                for (int dx = -r; dx <= r; dx++) {
+                    for (int dz = -r; dz <= r; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                        BlockPos target = pos.offset(dx, 0, dz);
+                        if (isCrop(level.getBlockState(target)) && !PENDING_POSITIONS.contains(target)) {
+                            PENDING_POSITIONS.add(target.immutable());
+                            WITHER_QUEUE.add(new ScheduledWither(target.immutable(), delay));
                         }
                     }
                 }
             }
         }
 
-        // 2. Contagion (Spores) Chain-Reaction
+        // 3. Queue Contagion (Spores) chain reactions with delayed cascade
         float contagionChance = state.getContagionChance();
         if (contagionChance > 0.0f) {
             RandomSource rand = level.getRandom();
-            List<BlockPos> chained = new ArrayList<>();
-            for (BlockPos target : toWither) {
-                if (rand.nextFloat() < contagionChance) {
-                    for (Direction dir : Direction.Plane.HORIZONTAL) {
-                        for (int dy = -1; dy <= 1; dy++) {
-                            BlockPos side = target.relative(dir).above(dy);
-                            if (!toWither.contains(side) && isCrop(level.getBlockState(side))) {
-                                chained.add(side.immutable());
-                                break;
+            List<BlockPos> currentWave = new ArrayList<>();
+            currentWave.add(pos);
+
+            int cascadeSteps = 3;
+            for (int step = 1; step <= cascadeSteps; step++) {
+                List<BlockPos> nextWave = new ArrayList<>();
+                int delay = (radius + step) * 2;
+
+                for (BlockPos source : currentWave) {
+                    if (rand.nextFloat() < contagionChance) {
+                        for (Direction dir : Direction.Plane.HORIZONTAL) {
+                            BlockPos side = source.relative(dir);
+                            if (isCrop(level.getBlockState(side)) && !PENDING_POSITIONS.contains(side)) {
+                                PENDING_POSITIONS.add(side.immutable());
+                                WITHER_QUEUE.add(new ScheduledWither(side.immutable(), delay));
+                                nextWave.add(side);
                             }
                         }
                     }
                 }
-            }
-            toWither.addAll(chained);
-        }
-
-        // Execute withering on all gathered crops
-        int witheredCount = 0;
-        for (BlockPos targetPos : toWither) {
-            if (witherCrop(level, targetPos)) {
-                witheredCount++;
+                currentWave = nextWave;
+                if (currentWave.isEmpty()) break;
             }
         }
 
-        if (witheredCount > 0) {
-            long earnedEssence = (long) witheredCount * state.getYieldMultiplier();
-            state.addEssence(earnedEssence);
-            state.recordWithered(witheredCount);
-
-            // Play impact audio
-            level.playLocalSound(
-                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                    SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
-                    0.35f, 1.8f, false
-            );
-            level.playLocalSound(
-                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                    SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
-                    0.8f, 0.7f, false
-            );
-
-            // Feedback action-bar
-            player.sendOverlayMessage(
-                    Component.literal(String.format("§5§lUnharvest §7| §d+%d Essence §7(Total: §d%s§7) | §aCleared: §f%.1f%% §7(§e[U] Upgrades§7)",
-                            earnedEssence, state.getFormattedEssence(), state.getClearedPercentage()))
-            );
-        }
+        // Feedback action-bar
+        player.sendOverlayMessage(
+                Component.literal(String.format("§5§lUnharvest §7| §d+%d Essence §7(Total: §d%s§7) | §aCleared: §f%.1f%%",
+                        earned, state.getFormattedEssence(), state.getClearedPercentage()))
+        );
 
         return true;
     }
 
     /**
-     * Called when the player right-clicks with an item.
-     * Opens the Unharvest Plague Upgrades Menu when holding the Withering Scythe.
+     * Opens upgrades menu on right-click with Withering Scythe.
      */
     public static boolean onRightClick(Level level, Player player, InteractionHand hand) {
         if (player == null || level == null) return false;
-
-        if (!isUnharvestWorld(level)) {
-            return false;
-        }
+        if (!isUnharvestWorld(level)) return false;
 
         ItemStack stack = player.getItemInHand(hand);
         if (UnharvestItems.isWitheringScythe(stack)) {
@@ -238,15 +250,11 @@ public class UnharvestManager {
     }
 
     /**
-     * Ticks idle automation (Locust Swarm), verifies field setup, and listens for keybinds.
-     * Strictly runs only in Unharvest worlds.
+     * Ticks delayed contagion spread queue, idle automation, field setup, and keybinds.
      */
     public static void tick(Level level, Player player) {
         if (level == null || player == null) return;
-
-        if (!isUnharvestWorld(level)) {
-            return;
-        }
+        if (!isUnharvestWorld(level)) return;
 
         clientTickCount++;
 
@@ -255,21 +263,60 @@ public class UnharvestManager {
             openUpgradesScreen();
         }
 
-        // 1. Initial village field setup and scythe verification
+        // 1. Process delayed withering spread queue (for beautiful visual cascading)
+        if (!WITHER_QUEUE.isEmpty()) {
+            tickWitherQueue(level, player);
+        }
+
+        // 2. Initial field setup and scythe verification
         if (clientTickCount % 40 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
             UnharvestItems.ensurePlayerHasScythe(player);
         }
 
-        // 2. Locust Swarm (Idle Automation)
+        // 3. Locust Swarm (Idle Automation)
         UnharvestState state = UnharvestState.getInstance();
         if (state.getSwarmLevel() > 0 && clientTickCount % state.getSwarmPeriodTicks() == 0) {
             tickLocustSwarm(level, player, state);
         }
     }
 
+    private static void tickWitherQueue(Level level, Player player) {
+        UnharvestState state = UnharvestState.getInstance();
+        Iterator<ScheduledWither> it = WITHER_QUEUE.iterator();
+        int witheredThisTick = 0;
+
+        while (it.hasNext()) {
+            ScheduledWither item = it.next();
+            item.delayTicks--;
+
+            if (item.delayTicks <= 0) {
+                it.remove();
+                PENDING_POSITIONS.remove(item.pos);
+
+                if (witherCrop(level, item.pos)) {
+                    witheredThisTick++;
+                }
+            }
+        }
+
+        if (witheredThisTick > 0) {
+            long earned = (long) witheredThisTick * state.getYieldMultiplier();
+            state.addEssence(earned);
+            state.recordWithered(witheredThisTick);
+
+            // Soft decay sound
+            BlockPos p = player.blockPosition();
+            level.playLocalSound(
+                    p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5,
+                    SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
+                    0.4f, 0.6f, false
+            );
+        }
+    }
+
     /**
-     * Periodic passive locust swarm that auto-seeks and withers nearby crops across rolling terrain.
+     * Periodic passive locust swarm that auto-seeks and withers nearby wheat.
      */
     private static void tickLocustSwarm(Level level, Player player, UnharvestState state) {
         int countToWither = state.getSwarmWitherCount();
@@ -280,50 +327,26 @@ public class UnharvestManager {
 
         for (int x = -searchRadius; x <= searchRadius; x++) {
             for (int z = -searchRadius; z <= searchRadius; z++) {
-                for (int dy = -4; dy <= 4; dy++) {
-                    BlockPos check = new BlockPos(playerPos.getX() + x, playerPos.getY() + dy, playerPos.getZ() + z);
-                    if (isCrop(level.getBlockState(check))) {
-                        candidates.add(check);
-                        break;
-                    }
+                BlockPos check = new BlockPos(playerPos.getX() + x, UnharvestFieldGenerator.getWheatY(level), playerPos.getZ() + z);
+                if (isCrop(level.getBlockState(check)) && !PENDING_POSITIONS.contains(check)) {
+                    candidates.add(check);
                 }
             }
         }
 
         if (candidates.isEmpty()) return;
-
-        // Sort by distance to player
         candidates.sort(Comparator.comparingDouble(p -> p.distSqr(playerPos)));
 
-        int withered = 0;
         int limit = Math.min(countToWither, candidates.size());
-
         for (int i = 0; i < limit; i++) {
             BlockPos target = candidates.get(i);
-            if (witherCrop(level, target)) {
-                withered++;
-
-                // Swarm particles: black ink and smoke flying upwards
-                level.addParticle(ParticleTypes.SQUID_INK, target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5, 0, 0.1, 0);
-                level.addParticle(ParticleTypes.SMOKE, target.getX() + 0.5, target.getY() + 0.8, target.getZ() + 0.5, 0, 0.05, 0);
-            }
-        }
-
-        if (withered > 0) {
-            long earned = (long) withered * state.getYieldMultiplier();
-            state.addEssence(earned);
-            state.recordWithered(withered);
-
-            level.playLocalSound(
-                    playerPos.getX() + 0.5, playerPos.getY() + 0.5, playerPos.getZ() + 0.5,
-                    SoundEvents.BEE_POLLINATE, SoundSource.PLAYERS,
-                    0.4f, 0.5f, false
-            );
+            PENDING_POSITIONS.add(target.immutable());
+            WITHER_QUEUE.add(new ScheduledWither(target.immutable(), (i + 1) * 2));
         }
     }
 
     /**
-     * Wither a single crop block into a Wither Rose and turn the soil into coarse dirt.
+     * Withers a crop into a Wither Rose and converts the soil beneath into corrupted coarse dirt or soul soil.
      */
     public static boolean witherCrop(Level level, BlockPos pos) {
         BlockState current = level.getBlockState(pos);
@@ -334,20 +357,22 @@ public class UnharvestManager {
         // Place Wither Rose
         level.setBlock(pos, Blocks.WITHER_ROSE.defaultBlockState(), 3);
 
-        // Turn soil underneath into coarse dirt
+        // Turn soil underneath into corrupted coarse dirt or soul soil
         BlockPos below = pos.below();
-        if (level.getBlockState(below).is(Blocks.FARMLAND)) {
-            level.setBlock(below, Blocks.COARSE_DIRT.defaultBlockState(), 3);
-        }
+        RandomSource random = level.getRandom();
+        BlockState corruptedSoil = (random.nextFloat() < 0.25f)
+                ? Blocks.SOUL_SOIL.defaultBlockState()
+                : Blocks.COARSE_DIRT.defaultBlockState();
+        level.setBlock(below, corruptedSoil, 3);
 
         // Visual necrotic burst
-        RandomSource random = level.getRandom();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             double px = pos.getX() + random.nextDouble();
-            double py = pos.getY() + random.nextDouble() * 0.6;
+            double py = pos.getY() + random.nextDouble() * 0.7;
             double pz = pos.getZ() + random.nextDouble();
-            level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.04, 0);
-            level.addParticle(ParticleTypes.PORTAL, px, py, pz, (random.nextDouble() - 0.5) * 0.2, 0.1, (random.nextDouble() - 0.5) * 0.2);
+            level.addParticle(ParticleTypes.SQUID_INK, px, py, pz, 0, 0.05, 0);
+            level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.03, 0);
+            level.addParticle(ParticleTypes.PORTAL, px, py, pz, (random.nextDouble() - 0.5) * 0.1, 0.05, (random.nextDouble() - 0.5) * 0.1);
         }
 
         return true;
