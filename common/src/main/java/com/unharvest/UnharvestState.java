@@ -26,6 +26,7 @@ public class UnharvestState {
     private long essence = 0;
     private int totalWithered = 0;
     private int fieldTotalCrops = 9761;
+    private long elapsedMillis = 0;
 
     // Graph Nodes
     public enum NodeCategory {
@@ -393,11 +394,26 @@ public class UnharvestState {
         return 2;
     }
 
+    public synchronized long getElapsedMillis() {
+        return elapsedMillis;
+    }
+
+    public synchronized void setElapsedMillis(long elapsedMillis) {
+        this.elapsedMillis = elapsedMillis;
+        save();
+    }
+
+    public synchronized void addElapsedMillis(long ms) {
+        if (ms <= 0 || isFieldCompleted()) return;
+        this.elapsedMillis += ms;
+    }
+
     // --- RESET ---
     public synchronized void resetAll() {
         this.essence = 0;
         this.totalWithered = 0;
         this.victoryShown = false;
+        this.elapsedMillis = 0;
         this.unlockedNodes.clear();
         this.unlockedNodes.add("skull");
         save();
@@ -418,6 +434,7 @@ public class UnharvestState {
         this.totalWithered = 0;
         this.fieldTotalCrops = 0;
         this.victoryShown = false;
+        this.elapsedMillis = 0;
         this.unlockedNodes.clear();
         this.unlockedNodes.add("skull");
 
@@ -429,6 +446,7 @@ public class UnharvestState {
                 if (json.has("totalWithered")) totalWithered = json.get("totalWithered").getAsInt();
                 if (json.has("fieldTotalCrops")) fieldTotalCrops = json.get("fieldTotalCrops").getAsInt();
                 if (json.has("victoryShown")) victoryShown = json.get("victoryShown").getAsBoolean();
+                if (json.has("elapsedMillis")) elapsedMillis = json.get("elapsedMillis").getAsLong();
 
                 if (json.has("unlockedNodes")) {
                     JsonArray arr = json.getAsJsonArray("unlockedNodes");
@@ -451,6 +469,7 @@ public class UnharvestState {
         this.totalWithered = 0;
         this.fieldTotalCrops = 0;
         this.victoryShown = false;
+        this.elapsedMillis = 0;
         this.unlockedNodes.clear();
         this.unlockedNodes.add("skull");
     }
@@ -466,6 +485,7 @@ public class UnharvestState {
             json.addProperty("totalWithered", totalWithered);
             json.addProperty("fieldTotalCrops", fieldTotalCrops);
             json.addProperty("victoryShown", victoryShown);
+            json.addProperty("elapsedMillis", elapsedMillis);
 
             JsonArray arr = new JsonArray();
             for (String node : unlockedNodes) {

@@ -2,7 +2,9 @@ package com.unharvest.gui;
 
 import com.unharvest.UnharvestFieldGenerator;
 import com.unharvest.UnharvestManager;
+import com.unharvest.UnharvestRecords;
 import com.unharvest.UnharvestState;
+import com.unharvest.UnharvestTimer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -11,6 +13,7 @@ import net.minecraft.network.chat.Component;
 /**
  * In-game HUD overlay for Unharvest:
  * - Top-left: Blight Essence balance, field clearance %, and upgrade ready alerts
+ * - Top-right: High-precision harvest speedrun timer with personal best tracking
  * - Bottom-right: Placeable Locust Swarm ability card with real-time cooldown sweep
  */
 public class UnharvestHud {
@@ -20,13 +23,19 @@ public class UnharvestHud {
         if (client.gui != null && client.gui.hud != null && client.gui.hud.isHidden()) return;
         if (!UnharvestManager.isUnharvestWorld(client.level)) return;
 
+        // Update timer every rendered frame
+        UnharvestTimer.update(client);
+
         Font font = client.font;
         UnharvestState state = UnharvestState.getInstance();
 
         // 1. Top-Left Progression Card
         renderTopLeftHud(extractor, font, state);
 
-        // 2. Bottom-Right Ability Card: Locust Swarm
+        // 2. Top-Right Harvest Timer Card
+        renderTopRightTimer(extractor, client, font, state);
+
+        // 3. Bottom-Right Ability Card: Locust Swarm
         renderSwarmAbilityCard(extractor, client, font, state);
     }
 
@@ -129,5 +138,48 @@ public class UnharvestHud {
 
     public static boolean isAnyUpgradeAvailable(UnharvestState state) {
         return state != null && state.hasAvailableUpgrade();
+    }
+
+    private static void renderTopRightTimer(GuiGraphicsExtractor extractor, Minecraft client, Font font, UnharvestState state) {
+        int screenWidth = client.getWindow().getGuiScaledWidth();
+        int width = 125;
+        int height = 36;
+        int x = screenWidth - width - 10;
+        int y = 10;
+
+        boolean isGenerating = UnharvestFieldGenerator.isGenerating();
+        boolean isCompleted = state.isFieldCompleted();
+        boolean isFrozen = UnharvestTimer.isFrozen();
+
+        // Card background fill
+        extractor.fill(x - 4, y - 4, x + width + 4, y + height + 4, 0x90000000);
+
+        // Border color: Gold when completed, otherwise purple
+        int borderColor = isCompleted ? 0xFFFFCC22 : 0xCC6A2A9A;
+        extractor.fill(x - 5, y - 5, x + width + 5, y - 4, borderColor); // top
+        extractor.fill(x - 5, y + height + 4, x + width + 5, y + height + 5, borderColor); // bottom
+        extractor.fill(x - 5, y - 5, x - 4, y + height + 5, borderColor); // left
+        extractor.fill(x + width + 4, y - 5, x + width + 5, y + height + 5, borderColor); // right
+
+        // Line 1: Header
+        extractor.text(font, Component.literal("§6⏱ §eHARVEST TIMER"), x, y, 0xFFFFFFFF);
+
+        // Line 2: High-precision formatted time
+        long elapsed = state.getElapsedMillis();
+        String timeStr = UnharvestTimer.formatTimer(elapsed);
+
+        if (isCompleted) {
+            extractor.text(font, Component.literal("§6🏆 §a" + timeStr), x, y + 12, 0xFFFFFFFF);
+        } else if (isGenerating) {
+            extractor.text(font, Component.literal("§7⏳ 00:00:000"), x, y + 12, 0xFFFFFFFF);
+        } else if (isFrozen) {
+            extractor.text(font, Component.literal("§e⏸ §f" + timeStr), x, y + 12, 0xFFFFFFFF);
+        } else {
+            extractor.text(font, Component.literal("§a▶ §f" + timeStr), x, y + 12, 0xFFFFFFFF);
+        }
+
+        // Line 3: Personal Best Record for this player
+        String pbStr = UnharvestRecords.getFormattedBest(client.player != null ? client.player.getUUID() : null);
+        extractor.text(font, Component.literal("§7PB: §d" + pbStr), x, y + 24, 0xFFFFFFFF);
     }
 }

@@ -188,6 +188,7 @@ public class UnharvestManager {
         lastUpgradeAvailable = false;
         UnharvestFieldGenerator.clearCache();
         UnharvestState.getInstance().unload();
+        UnharvestTimer.reset();
     }
 
     /**
@@ -459,6 +460,21 @@ public class UnharvestManager {
         // 5. 100% Field Clearance Victory Popup
         if (state.isFieldCompleted() && !state.isVictoryShown()) {
             state.setVictoryShown(true);
+            if (player != null) {
+                boolean isNewPb = UnharvestRecords.recordCompletion(
+                        player.getUUID(),
+                        player.getName().getString(),
+                        state.getElapsedMillis(),
+                        state.getTotalWithered()
+                );
+                if (isNewPb) {
+                    player.sendSystemMessage(Component.literal(String.format(
+                            Locale.US,
+                            "§6§l[Unharvest] ★ NEW PERSONAL BEST! §f%s §e(Saved to records) ★",
+                            UnharvestTimer.formatTimer(state.getElapsedMillis())
+                    )));
+                }
+            }
             openVictoryScreen();
         }
     }

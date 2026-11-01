@@ -291,6 +291,9 @@ public class UnharvestFieldGenerator {
 
         // Reset withered count so clearance begins at 0%
         UnharvestState.getInstance().setTotalWithered(0);
+        UnharvestState.getInstance().setElapsedMillis(0);
+        UnharvestState.getInstance().setVictoryShown(false);
+        UnharvestTimer.reset();
 
         currentGroundY = getGroundY(serverLevel);
         currentCropY = currentGroundY + 1;

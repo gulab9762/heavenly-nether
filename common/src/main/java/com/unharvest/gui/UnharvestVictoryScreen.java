@@ -1,6 +1,7 @@
 package com.unharvest.gui;
 
 import com.unharvest.UnharvestState;
+import com.unharvest.UnharvestTimer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -107,8 +108,9 @@ public class UnharvestVictoryScreen extends Screen {
             extractor.centeredText(font, Component.literal("§7Every last stalk has withered into eternal ruin."), centerX, y + 55, 0xFFFFFFFF);
 
             // 3. Stats Summary
-            String statsText = String.format(Locale.US, "§d✨ Final Essence: §f%s   §7|   §a🌾 Withered: §f%,d / %,d (100%%)",
-                    state.getFormattedEssence(), state.getTotalWithered(), state.getFieldTotalCrops());
+            String timeStr = UnharvestTimer.formatTimer(state.getElapsedMillis());
+            String statsText = String.format(Locale.US, "§d✨ Final Essence: §f%s   §7|   §6⏱ Time: §f%s",
+                    state.getFormattedEssence(), timeStr);
             extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
         } else {
             // 1. Progress Status Header (Replaces Congrats when not yet completed)
@@ -120,8 +122,9 @@ public class UnharvestVictoryScreen extends Screen {
             extractor.centeredText(font, Component.literal("§7Wither every crop with your scythe to achieve 100% victory!"), centerX, y + 55, 0xFFFFFFFF);
 
             // 3. Stats Summary
-            String statsText = String.format(Locale.US, "§d✨ Blight Essence: §f%s   §7|   §a🌾 Cleared: §f%.1f%% §7(%,d / %,d)",
-                    state.getFormattedEssence(), state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops());
+            String timeStr = UnharvestTimer.formatTimer(state.getElapsedMillis());
+            String statsText = String.format(Locale.US, "§a🌾 Cleared: §f%.1f%% §7(%,d/%,d)   §7|   §6⏱ §f%s",
+                    state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops(), timeStr);
             extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
         }
 
