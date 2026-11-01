@@ -72,7 +72,7 @@ public class UnharvestFieldGenerator {
     private static int currentGroundY = 0;
     private static int currentCropY = 0;
     private static Path currentMarkerFile = null;
-    private static final int BLOCKS_PER_TICK = 250; // Smooth radial block rate (~3.5s total)
+    private static final int BLOCKS_PER_TICK = 50; // Smooth radial block rate (~9s total, zero lag)
 
     public static class RescanResult {
         public final int total;
@@ -219,7 +219,7 @@ public class UnharvestFieldGenerator {
             }
         }
 
-        // 3. Set sunset time (12500) and freeze daylight cycle (advance_time false & doDaylightCycle false)
+        // 3. Set sunset time (12200) to keep moon below horizon, and freeze daylight cycle
         CommandSourceStack stack = server.createCommandSourceStack().withSuppressedOutput();
         try {
             server.getCommands().performPrefixedCommand(stack, "gamerule advance_time false");
@@ -228,7 +228,7 @@ public class UnharvestFieldGenerator {
             server.getCommands().performPrefixedCommand(stack, "gamerule doDaylightCycle false");
         } catch (Exception ignored) {}
         try {
-            server.getCommands().performPrefixedCommand(stack, "time set 12500");
+            server.getCommands().performPrefixedCommand(stack, "time set 12200");
         } catch (Exception ignored) {}
     }
 
@@ -244,8 +244,6 @@ public class UnharvestFieldGenerator {
 
         ServerLevel serverLevel = server.overworld();
         if (serverLevel == null) return;
-
-        applyWorldRules(server, serverLevel);
 
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
         Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
@@ -370,10 +368,10 @@ public class UnharvestFieldGenerator {
                 continue;
             }
 
-            // Clear any debris or floating structures above the field
+            // Clear any debris or floating structures above the field (only 2 blocks high to avoid CPU lag)
             // Do NOT clear above currentCropY + 1 near structures so roof eaves, balcony, and sails are preserved!
             if (!isNearStructure(x, z)) {
-                for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
+                for (int clearY = currentCropY + 1; clearY <= currentCropY + 2; clearY++) {
                     BlockPos abovePos = new BlockPos(x, clearY, z);
                     if (!serverLevel.getBlockState(abovePos).isAir()) {
                         serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
@@ -400,12 +398,19 @@ public class UnharvestFieldGenerator {
             BlockPos cropPos = new BlockPos(x, currentCropY, z);
 
             if (dist <= shapeRadius) {
-                // Inside the wheat field: place farmland and mature wheat (replaces any old wither roses!)
-                serverLevel.setBlock(floorPos, moistFarmland, 2);
-                serverLevel.setBlock(cropPos, matureWheat, 2);
+                // Inside the wheat field: place farmland and mature wheat (skip if already correct to eliminate lag)
+                if (!serverLevel.getBlockState(floorPos).is(Blocks.FARMLAND)) {
+                    serverLevel.setBlock(floorPos, moistFarmland, 2);
+                }
+                BlockState currentCrop = serverLevel.getBlockState(cropPos);
+                if (!currentCrop.is(Blocks.WHEAT) || currentCrop.getValue(CropBlock.AGE) != 7) {
+                    serverLevel.setBlock(cropPos, matureWheat, 2);
+                }
                 totalPlacedCrops++;
             } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
-                serverLevel.setBlock(floorPos, coarseDirt, 2);
+                if (!serverLevel.getBlockState(floorPos).is(Blocks.COARSE_DIRT)) {
+                    serverLevel.setBlock(floorPos, coarseDirt, 2);
+                }
                 if (!serverLevel.getBlockState(cropPos).isAir()) {
                     serverLevel.removeBlock(cropPos, false);
                 }
