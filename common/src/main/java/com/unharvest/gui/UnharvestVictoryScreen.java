@@ -24,7 +24,7 @@ import java.util.Locale;
 public class UnharvestVictoryScreen extends Screen {
 
     private final Screen parent;
-    private static final String YOUTUBE_URL = "https://www.youtube.com/results?search_query=Unharvest+game";
+    private static final String YOUTUBE_URL = "https://www.youtube.com/@SkorpionDev";
     private static final String STEAM_URL = "https://store.steampowered.com/app/5138990/Unharvest/";
 
     public UnharvestVictoryScreen(Screen parent) {
@@ -35,12 +35,12 @@ public class UnharvestVictoryScreen extends Screen {
     @Override
     protected void init() {
         int centerX = this.width / 2;
-        int boxWidth = 330;
-        int boxHeight = 220;
+        int boxWidth = 360;
+        int boxHeight = 225;
         int topY = this.height / 2 - boxHeight / 2;
 
         int btnWidth = 150;
-        int btnY = topY + 125;
+        int btnY = topY + 115;
 
         // Button 1: Support on YouTube
         addRenderableWidget(Button.builder(
@@ -55,11 +55,12 @@ public class UnharvestVictoryScreen extends Screen {
         ).bounds(centerX + 6, btnY, btnWidth, 20).build());
 
         // Button 3: Close / Continue Roaming
-        int doneWidth = 120;
+        int doneWidth = 130;
+        int doneY = topY + 186;
         addRenderableWidget(Button.builder(
                 Component.literal("Continue Playing"),
                 btn -> this.onClose()
-        ).bounds(centerX - doneWidth / 2, topY + 185, doneWidth, 20).build());
+        ).bounds(centerX - doneWidth / 2, doneY, doneWidth, 20).build());
 
         // Play celebratory victory fanfare
         if (this.minecraft != null) {
@@ -73,8 +74,8 @@ public class UnharvestVictoryScreen extends Screen {
         extractor.fill(0, 0, this.width, this.height, 0xAA08040C);
 
         int centerX = this.width / 2;
-        int boxWidth = 330;
-        int boxHeight = 220;
+        int boxWidth = 360;
+        int boxHeight = 225;
         int x = centerX - boxWidth / 2;
         int y = this.height / 2 - boxHeight / 2;
 
@@ -95,22 +96,23 @@ public class UnharvestVictoryScreen extends Screen {
         extractor.centeredText(font, Component.literal("§d§lCONGRATULATIONS!§r"), centerX, y + 26, 0xFFFFFFFF);
 
         // 2. Victory Message
-        extractor.centeredText(font, Component.literal("§aYou have brought total decay upon the golden field!"), centerX, y + 44, 0xFFFFFFFF);
-        extractor.centeredText(font, Component.literal("§7Every last stalk has withered into eternal ruin."), centerX, y + 56, 0xFFFFFFFF);
+        extractor.centeredText(font, Component.literal("§aYou have brought total decay upon the golden field!"), centerX, y + 43, 0xFFFFFFFF);
+        extractor.centeredText(font, Component.literal("§7Every last stalk has withered into eternal ruin."), centerX, y + 55, 0xFFFFFFFF);
 
         // 3. Stats Summary
         String statsText = String.format(Locale.US, "§d✨ Final Essence: §f%s   §7|   §a🌾 Withered: §f%,d / %,d",
                 state.getFormattedEssence(), state.getTotalWithered(), state.getFieldTotalCrops());
-        extractor.centeredText(font, Component.literal(statsText), centerX, y + 76, 0xFFFFFFFF);
+        extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
 
         // Decorative subtle divider
-        extractor.fill(x + 20, y + 94, x + boxWidth - 20, y + 95, 0x40FFFFFF);
+        extractor.fill(x + 25, y + 89, x + boxWidth - 25, y + 90, 0x30FFFFFF);
 
         // 4. Community & Support Prompt
-        extractor.centeredText(font, Component.literal("§eSupport the creator & check out the original game:"), centerX, y + 104, 0xFFFFFFFF);
+        extractor.centeredText(font, Component.literal("§eSupport the creator & check out the original game:"), centerX, y + 97, 0xFFFFFFFF);
 
-        // 5. Small commands notice to replay
-        extractor.centeredText(font, Component.literal("§7Replay Commands: §e/unharvest reset §7(Reset)  |  §e/unharvest regenerate §7(Rebuild)"), centerX, y + 158, 0xFFCCCCCC);
+        // 5. Small commands notice to replay (Clean 2-line layout that fits well within borders)
+        extractor.centeredText(font, Component.literal("§7Reset Upgrades & Essence: §e/unharvest reset"), centerX, y + 148, 0xFFCCCCCC);
+        extractor.centeredText(font, Component.literal("§7Regrow Wheat Arena: §e/unharvest regenerate"), centerX, y + 162, 0xFFCCCCCC);
 
         // Render buttons
         super.extractRenderState(extractor, mouseX, mouseY, partialTicks);
