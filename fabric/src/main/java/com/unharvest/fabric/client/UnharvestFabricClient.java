@@ -52,6 +52,12 @@ public class UnharvestFabricClient implements ClientModInitializer {
                             .then(ClientCommands.literal("regenerate")
                                     .executes(context -> UnharvestCommands.regenerateField(Minecraft.getInstance().player))
                             )
+                            .then(ClientCommands.literal("victory")
+                                    .executes(context -> UnharvestCommands.showVictory(Minecraft.getInstance().player))
+                            )
+                            .then(ClientCommands.literal("stats")
+                                    .executes(context -> UnharvestCommands.showVictory(Minecraft.getInstance().player))
+                            )
                             // [DEBUG COMMAND - Comment out before final production release]
                             .then(ClientCommands.literal("essence")
                                     .then(ClientCommands.argument("amount", com.mojang.brigadier.arguments.LongArgumentType.longArg(1))

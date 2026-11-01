@@ -17,6 +17,15 @@ public class UnharvestCommands {
         return 1;
     }
 
+    public static int showVictory(Player player) {
+        if (player != null && !UnharvestManager.isUnharvestWorld(player.level())) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
+            return 0;
+        }
+        UnharvestManager.openVictoryScreen();
+        return 1;
+    }
+
     public static int giveScythe(Player player) {
         if (player != null) {
             if (!UnharvestManager.isUnharvestWorld(player.level())) {

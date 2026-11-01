@@ -53,7 +53,7 @@ public class UnharvestHud {
         extractor.text(font, Component.literal("§d✨ Essence: §f" + state.getFormattedEssence()), x, y + 13, 0xFFFFFFFF);
 
         // Field Clearance % (exact counts with comma formatting)
-        extractor.text(font, Component.literal(String.format(java.util.Locale.US, "§a🌿 Cleared: §f%.1f%% §7(%,d/%,d)",
+        extractor.text(font, Component.literal(String.format(java.util.Locale.US, "§a🌿 Withered: §f%.1f%% §7(%,d/%,d)",
                 state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFFFF);
 
         // Upgrade Notification or Field Generation Status

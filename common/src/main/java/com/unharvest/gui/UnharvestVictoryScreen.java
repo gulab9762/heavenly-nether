@@ -62,9 +62,14 @@ public class UnharvestVictoryScreen extends Screen {
                 btn -> this.onClose()
         ).bounds(centerX - doneWidth / 2, doneY, doneWidth, 20).build());
 
-        // Play celebratory victory fanfare
+        // Play celebratory victory fanfare if completed, otherwise soft button sound
+        UnharvestState state = UnharvestState.getInstance();
         if (this.minecraft != null) {
-            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f));
+            if (state.isFieldCompleted()) {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f));
+            } else {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0f));
+            }
         }
     }
 
@@ -90,19 +95,35 @@ public class UnharvestVictoryScreen extends Screen {
 
         Font font = this.font;
         UnharvestState state = UnharvestState.getInstance();
+        boolean completed = state.isFieldCompleted();
 
-        // 1. Triumphant Banner Titles
-        extractor.centeredText(font, Component.literal("§6§l🏆 100% FIELD WITHERED! 🏆"), centerX, y + 12, 0xFFFFFFFF);
-        extractor.centeredText(font, Component.literal("§d§lCONGRATULATIONS!§r"), centerX, y + 26, 0xFFFFFFFF);
+        if (completed) {
+            // 1. Triumphant Banner Titles
+            extractor.centeredText(font, Component.literal("§6§l🏆 100% FIELD WITHERED! 🏆"), centerX, y + 12, 0xFFFFFFFF);
+            extractor.centeredText(font, Component.literal("§d§lCONGRATULATIONS!§r"), centerX, y + 26, 0xFFFFFFFF);
 
-        // 2. Victory Message
-        extractor.centeredText(font, Component.literal("§aYou have brought total decay upon the golden field!"), centerX, y + 43, 0xFFFFFFFF);
-        extractor.centeredText(font, Component.literal("§7Every last stalk has withered into eternal ruin."), centerX, y + 55, 0xFFFFFFFF);
+            // 2. Victory Message
+            extractor.centeredText(font, Component.literal("§aYou have brought total decay upon the golden field!"), centerX, y + 43, 0xFFFFFFFF);
+            extractor.centeredText(font, Component.literal("§7Every last stalk has withered into eternal ruin."), centerX, y + 55, 0xFFFFFFFF);
 
-        // 3. Stats Summary
-        String statsText = String.format(Locale.US, "§d✨ Final Essence: §f%s   §7|   §a🌾 Withered: §f%,d / %,d",
-                state.getFormattedEssence(), state.getTotalWithered(), state.getFieldTotalCrops());
-        extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
+            // 3. Stats Summary
+            String statsText = String.format(Locale.US, "§d✨ Final Essence: §f%s   §7|   §a🌾 Withered: §f%,d / %,d (100%%)",
+                    state.getFormattedEssence(), state.getTotalWithered(), state.getFieldTotalCrops());
+            extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
+        } else {
+            // 1. Progress Status Header (Replaces Congrats when not yet completed)
+            extractor.centeredText(font, Component.literal("§5§l🌾 UNHARVEST PLAGUE FIELD 🌾"), centerX, y + 12, 0xFFFFFFFF);
+            extractor.centeredText(font, Component.literal("§e§lFIELD CLEARANCE IN PROGRESS§r"), centerX, y + 26, 0xFFFFFFFF);
+
+            // 2. In-Progress Message
+            extractor.centeredText(font, Component.literal("§aThe withering blight is spreading across the arena."), centerX, y + 43, 0xFFFFFFFF);
+            extractor.centeredText(font, Component.literal("§7Wither every crop with your scythe to achieve 100% victory!"), centerX, y + 55, 0xFFFFFFFF);
+
+            // 3. Stats Summary
+            String statsText = String.format(Locale.US, "§d✨ Blight Essence: §f%s   §7|   §a🌾 Cleared: §f%.1f%% §7(%,d / %,d)",
+                    state.getFormattedEssence(), state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops());
+            extractor.centeredText(font, Component.literal(statsText), centerX, y + 73, 0xFFFFFFFF);
+        }
 
         // Decorative subtle divider
         extractor.fill(x + 25, y + 89, x + boxWidth - 25, y + 90, 0x30FFFFFF);
