@@ -5,16 +5,20 @@ import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
+import net.minecraft.world.level.block.LanternBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.storage.LevelResource;
 
@@ -144,13 +148,18 @@ public class UnharvestFieldGenerator {
     }
 
     public static boolean isInStructureFootprint(int x, int z) {
-        if (x >= WINDMILL_X - 6 && x <= WINDMILL_X + 6 && z >= WINDMILL_Z - 6 && z <= WINDMILL_Z + 6) {
+        // Windmill footprint
+        int dx = x - WINDMILL_X;
+        int dz = z - WINDMILL_Z;
+        if (dx * dx + dz * dz <= 25) {
             return true;
         }
-        if (x >= HOUSE_X - 6 && x <= HOUSE_X + 6 && z >= HOUSE_Z - 6 && z <= HOUSE_Z + 6) {
-            return true;
-        }
-        return false;
+        // Farmer's House & Porch footprint
+        int minX = HOUSE_X - 4;
+        int maxX = HOUSE_X + 4;
+        int minZ = HOUSE_Z - 3;
+        int maxZ = HOUSE_Z + 4;
+        return (x >= minX - 3 && x <= maxX + 3 && z >= minZ - 3 && z <= maxZ + 3);
     }
 
     /**
@@ -211,6 +220,9 @@ public class UnharvestFieldGenerator {
         totalPlacedCrops = 0;
         processedChunksCount = 0;
         currentMarkerFile = markerFile;
+
+        // Reset withered count so clearance begins at 0%
+        UnharvestState.getInstance().setTotalWithered(0);
 
         currentGroundY = getGroundY(serverLevel);
         currentCropY = currentGroundY + 1;
@@ -403,6 +415,9 @@ public class UnharvestFieldGenerator {
             for (int dz = -5; dz <= 5; dz++) {
                 if (dx * dx + dz * dz <= 24) {
                     level.setBlock(new BlockPos(cx + dx, groundY, cz + dz), ((dx + dz) % 2 == 0) ? coarseDirt : gravel, 2);
+                    for (int y = groundY + 1; y <= groundY + 4; y++) {
+                        level.setBlock(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState(), 2);
+                    }
                 }
             }
         }
@@ -520,7 +535,7 @@ public class UnharvestFieldGenerator {
         level.setBlock(new BlockPos(cx - 1, groundY + 1, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
         level.setBlock(new BlockPos(cx - 1, groundY + 2, cz - 1), Blocks.HAY_BLOCK.defaultBlockState(), 2);
         level.setBlock(new BlockPos(cx + 1, groundY + 1, cz - 1), Blocks.BARREL.defaultBlockState(), 2);
-        level.setBlock(new BlockPos(cx, groundY + 3, cz), lantern, 2);
+        level.setBlock(new BlockPos(cx, groundY + 3, cz), lantern.setValue(LanternBlock.HANGING, true), 2);
     }
 
     /**
@@ -549,11 +564,14 @@ public class UnharvestFieldGenerator {
         int minZ = hz - 3;
         int maxZ = hz + 4;
 
-        // 1. Surrounding apron
-        for (int x = minX - 2; x <= maxX + 2; x++) {
-            for (int z = minZ - 2; z <= maxZ + 2; z++) {
+        // 1. Surrounding apron and yard (set walking path and clear all air above!)
+        for (int x = minX - 3; x <= maxX + 3; x++) {
+            for (int z = minZ - 3; z <= maxZ + 3; z++) {
                 if (x < minX || x > maxX || z < minZ || z > maxZ) {
                     level.setBlock(new BlockPos(x, groundY, z), ((x + z) % 2 == 0) ? coarseDirt : dirtPath, 2);
+                    for (int y = groundY + 1; y <= groundY + 4; y++) {
+                        level.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(), 2);
+                    }
                 }
             }
         }
@@ -614,8 +632,10 @@ public class UnharvestFieldGenerator {
         for (int x = hx - 2; x <= hx + 2; x++) {
             level.setBlock(new BlockPos(x, groundY + 3, porchZ), spruceSlab, 2);
         }
-        level.setBlock(new BlockPos(hx - 2, groundY + 2, porchZ - 1), lantern, 2);
-        level.setBlock(new BlockPos(hx + 2, groundY + 2, porchZ - 1), lantern, 2);
+        // Lanterns hanging directly beneath the porch roof slabs
+        BlockState hangingLantern = lantern.setValue(LanternBlock.HANGING, true);
+        level.setBlock(new BlockPos(hx - 1, groundY + 2, porchZ), hangingLantern, 2);
+        level.setBlock(new BlockPos(hx + 1, groundY + 2, porchZ), hangingLantern, 2);
 
         // 5. Barn Gable Roof (Y = groundY + 5 to groundY + 8)
         // Sloping up along X axis towards hx
@@ -658,12 +678,24 @@ public class UnharvestFieldGenerator {
         level.setBlock(new BlockPos(chimX, groundY + 9, chimZ), campfire, 2);
 
         // 7. Cozy Interior Furnishings
-        level.setBlock(new BlockPos(minX + 1, groundY + 1, minZ + 1), Blocks.BED.red().defaultBlockState(), 2);
+        // Fully formed red bed (Head with pillow at minZ+1 against back wall, Foot with blanket at minZ+2)
+        BlockPos headPos = new BlockPos(minX + 1, groundY + 1, minZ + 1);
+        BlockPos footPos = new BlockPos(minX + 1, groundY + 1, minZ + 2);
+        BlockState bedBlock = Blocks.BED.red().defaultBlockState();
+        BlockState headState = bedBlock
+                .setValue(BedBlock.FACING, Direction.NORTH)
+                .setValue(BedBlock.PART, BedPart.HEAD);
+        BlockState footState = bedBlock
+                .setValue(BedBlock.FACING, Direction.NORTH)
+                .setValue(BedBlock.PART, BedPart.FOOT);
+        level.setBlock(headPos, headState, 2);
+        level.setBlock(footPos, footState, 2);
+
         level.setBlock(new BlockPos(minX + 1, groundY + 1, maxZ - 1), Blocks.CRAFTING_TABLE.defaultBlockState(), 2);
         level.setBlock(new BlockPos(minX + 1, groundY + 1, maxZ - 2), Blocks.FURNACE.defaultBlockState(), 2);
         level.setBlock(new BlockPos(maxX - 1, groundY + 1, minZ + 1), Blocks.BARREL.defaultBlockState(), 2);
         level.setBlock(new BlockPos(maxX - 1, groundY + 1, minZ + 2), Blocks.HAY_BLOCK.defaultBlockState(), 2);
-        level.setBlock(new BlockPos(hx, groundY + 4, hz), lantern, 2);
+        level.setBlock(new BlockPos(hx, groundY + 4, hz), hangingLantern, 2);
     }
 
     /**
