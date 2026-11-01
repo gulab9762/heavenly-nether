@@ -46,7 +46,19 @@ public class UnharvestCommands {
         UnharvestFieldGenerator.clearCache();
         UnharvestTimer.reset();
         if (player != null) {
-            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aAll progress, plague essence, and upgrades have been reset to zero!"));
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aAll progress, plague essence, upgrades, and timer have been reset to zero!"));
+        }
+        return 1;
+    }
+
+    public static int resetTimer(Player player) {
+        if (player != null && !UnharvestManager.isUnharvestWorld(player.level())) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
+            return 0;
+        }
+        UnharvestTimer.reset();
+        if (player != null) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aHarvest timer has been reset to 00:00:000!"));
         }
         return 1;
     }

@@ -83,9 +83,10 @@ public class UnharvestTimer {
         return isFrozen;
     }
 
-    public static void reset() {
+    public static synchronized void reset() {
         lastUpdateNano = -1;
         isFrozen = true;
+        UnharvestState.getInstance().setElapsedMillis(0);
     }
 
     /**
@@ -107,3 +108,4 @@ public class UnharvestTimer {
         }
     }
 }
+
