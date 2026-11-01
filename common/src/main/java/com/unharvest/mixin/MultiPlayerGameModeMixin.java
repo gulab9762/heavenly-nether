@@ -1,6 +1,5 @@
-package com.treeshake.mixin;
+package com.unharvest.mixin;
 
-import com.treeshake.client.animation.tree.TreeShakeManager;
 import com.unharvest.UnharvestItems;
 import com.unharvest.UnharvestManager;
 import net.minecraft.client.Minecraft;
@@ -34,13 +33,11 @@ public abstract class MultiPlayerGameModeMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void treeshake$onStartDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+    private void unharvest$onStartDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null) {
             if (UnharvestManager.onLeftClickBlock(this.minecraft.level, this.minecraft.player, pos, direction)) {
                 cir.setReturnValue(true);
-                return;
             }
-            TreeShakeManager.onPunchBlock(this.minecraft.level, this.minecraft.player, pos, direction);
         }
     }
 
@@ -49,13 +46,11 @@ public abstract class MultiPlayerGameModeMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void treeshake$onContinueDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+    private void unharvest$onContinueDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null) {
             if (UnharvestManager.onLeftClickBlock(this.minecraft.level, this.minecraft.player, pos, direction)) {
                 cir.setReturnValue(true);
-                return;
             }
-            TreeShakeManager.onContinuousPunch(this.minecraft.level, this.minecraft.player, pos, direction);
         }
     }
 
@@ -64,17 +59,15 @@ public abstract class MultiPlayerGameModeMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void treeshake$onDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+    private void unharvest$onDestroyBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         if (this.minecraft.level != null && this.minecraft.player != null) {
             ItemStack held = this.minecraft.player.getMainHandItem();
             if (UnharvestItems.isWitheringScythe(held)) {
                 BlockState state = this.minecraft.level.getBlockState(pos);
                 if (UnharvestManager.isCrop(state) || state.is(Blocks.WITHER_ROSE) || state.is(Blocks.FARMLAND)) {
                     cir.setReturnValue(false);
-                    return;
                 }
             }
-            TreeShakeManager.onBlockDestroyed(this.minecraft.level, pos);
         }
     }
 
@@ -83,14 +76,10 @@ public abstract class MultiPlayerGameModeMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void treeshake$onUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<InteractionResult> cir) {
+    private void unharvest$onUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<InteractionResult> cir) {
         if (this.minecraft.level != null && player != null) {
             if (UnharvestManager.onRightClick(this.minecraft.level, player, hand)) {
                 cir.setReturnValue(InteractionResult.SUCCESS);
-                return;
-            }
-            if (hitResult != null) {
-                TreeShakeManager.onRightClickBlock(this.minecraft.level, player, hand, hitResult.getBlockPos(), hitResult.getDirection());
             }
         }
     }

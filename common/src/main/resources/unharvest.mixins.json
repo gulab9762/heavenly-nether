@@ -1,18 +1,15 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "com.treeshake.mixin",
+  "package": "com.unharvest.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ItemEntityMixin"
   ],
   "client": [
-    "BlockEntityRenderDispatcherMixin",
     "CreateWorldScreenMixin",
     "HudMixin",
-    "LevelRendererMixin",
-    "MultiPlayerGameModeMixin",
-    "RenderSectionRegionMixin"
+    "MultiPlayerGameModeMixin"
   ],
   "injectors": {
     "defaultRequire": 1

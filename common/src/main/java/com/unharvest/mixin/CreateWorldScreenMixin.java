@@ -1,4 +1,4 @@
-package com.treeshake.mixin;
+package com.unharvest.mixin;
 
 import com.unharvest.UnharvestManager;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
@@ -32,4 +32,3 @@ public abstract class CreateWorldScreenMixin {
         }
     }
 }
-

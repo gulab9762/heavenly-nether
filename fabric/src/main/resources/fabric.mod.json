@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.treeshake.fabric.TreeShakeFabric"
+            "com.unharvest.fabric.UnharvestFabric"
         ],
         "client": [
-            "com.treeshake.fabric.client.TreeShakeFabricClient"
+            "com.unharvest.fabric.client.UnharvestFabricClient"
         ]
     },
     "mixins": [

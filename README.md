@@ -1,45 +1,38 @@
-# Tree Shake Animations
+# Unharvest
 
-A client-side visual mod for **Minecraft 26.3** (Fabric, Forge & NeoForge) that adds delightful tree punch shake physics when punching or right-clicking trees and wooden logs.
+A reverse-farming indie-game inspired simulation mod for **Minecraft 26.3** (Fabric, Forge & NeoForge).
 
----
-
-## ✨ Features
-
-### 🌴 Tree Shake Physics (Client-Side)
-- **Topological Tree BFS Detection**:
-  - Automatically identifies connected tree trunks (`#minecraft:logs`, `#minecraft:warped_stems`, `#minecraft:crimson_stems`, `mushroom_stem`, `bamboo_block`, `mangrove_roots`) and canopy foliage (`#minecraft:leaves`, `#minecraft:wart_blocks`).
-  - Distinguishes natural trees and stems from man-made structures like log cabins or bridges.
-  - **Wooden Blocks Only**: Punching or right-clicking wooden logs/stems triggers the shake; interacting with loose foliage does not.
-- **Spring & Inverse Pendulum Physics**:
-  - **Firm Ground Anchor**: The base log touching the ground stays 100% anchored with zero gap underneath.
-  - The trunk bends with height-dependent curvature, swaying along the punch direction with organic 3D cross-wobble figure-8 physics.
-  - **Squash & Stretch**: Compresses vertically on punch impact while bulging outwards, stretching tall on spring rebound.
-- **Foliage Flutter & Leaf Particles**:
-  - Independent high-frequency micro-rustle and breathing scale for each leaf block.
-  - Punches cause leaf particles and wood splinters to burst out and float down with gravity.
-  - Punch impact sound effects (`WOOD_HIT` + foliage rustle).
-- **Interactive Triggers**:
-  - **Punch (Left-Click)**: Delivers rhythmic spring impulses on each swing, keeping the tree in continuous wobble while mining.
-  - **Interact (Right-Click)**: Right-clicking any wooden block shakes the entire tree.
-- **Zero-Flicker Transition**:
-  - Seamless chunk mesh handoff: chunk sections re-bake during settling without any visual popping.
+Drain the life from endless wheat fields, unleash decaying blights, deploy hungry locust swarms, and upgrade your plagues across an authentic graph skill tree!
 
 ---
 
-## 💬 Client Commands & Configuration UI
+## 🌾 Gameplay Overview
 
-- `/treeshake` or `/treeshake toggle`: Toggles tree shake animations on/off.
-- `/treeshake on|off`: Explicitly enables or disables tree shaking.
-- `/treeshake config` (or `/treeshake gui`, `/treeshake menu`): Opens the in-game Configuration Screen.
+- **Plague Arena World Preset**:
+  - Create a new world and select **Unharvest (Wheat Field)** under world presets.
+  - Automatically generates an organic, non-squared wheat arena (~9,000+ crops) at world spawn surrounded by peaceful terrain.
+  - World difficulty is enforced as **Peaceful**.
+
+- **Withering Scythe**:
+  - Automatically provided to the player when entering the Unharvest world.
+  - **Left-Click Wheat**: Instantly withers wheat into a **Wither Rose**, converting the soil beneath into corrupted coarse dirt and soul soil, earning **Blight Essence**.
+  - **Right-Click**: Deploys the placeable **Locust Swarm** when unlocked and ready!
+  - **Shift + Right-Click** or **[U] Key**: Opens the Plague Upgrade Tree.
+
+- **Graph-Style Upgrade Tree ([U])**:
+  - **Center Tree (Scythe)**: Scythe Swing Speed, Wither Radius AoE, and Essence Multipliers leading up to the **Grim Reaper Apex**.
+  - **Left Branch (Crimson Spores)**: Fungal Genesis contagion, chain-reaction infection chances, and expanding cascade radius leading up to **Primal Rot**.
+  - **Right Branch (Dark-Moss Swarms)**: Placeable Locust Swarm ability, cooldown reductions, devour speed, and swarm area leading up to the **Pestilence Horde**.
+
+- **Placeable Locust Swarm ([R])**:
+  - Press **[R]** to target the ground and unleash a voracious, buzzing swarm of locusts that aggressively consumes crops in a designated zone for 7 seconds.
+  - Tracked via a HUD ability card at the bottom-right of the screen with a dynamic cooldown sweep overlay and countdown timer.
 
 ---
 
-## 🛠️ In-Game Configuration Screen
-Access via `/treeshake config`:
-- **Toggle Tree Shake**: Enable/disable tree shake.
-- **Wobble Intensity**: Adjust spring displacement from `0.20x` to `2.50x`.
-- **Duration**: Adjust wobble length from `6 ticks (0.3s)` to `30 ticks (1.5s)`.
-- **Tree Particles**: Toggle leaf burst & wood particles on/off.
-- **Tree Sound**: Toggle impact audio effects on/off.
-- **Reset to Defaults**: Restore optimal physics settings.
+## 💬 Commands
+
+- `/unharvest` or `/unharvest upgrades`: Opens the Plague Upgrade Tree screen.
+- `/unharvest scythe`: Gives the player a Withering Scythe if lost.
+- `/unharvest regenerate`: Re-clears the airspace of any structure obstructions and regenerates the field.
+- `/unharvest reset`: Resets all upgrade progress, currencies, and stats to zero.

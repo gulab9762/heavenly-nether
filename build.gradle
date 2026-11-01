@@ -115,10 +115,10 @@ tasks.register('notifyBuildComplete') {
         def conn = ntfyUrl.openConnection() as HttpURLConnection
         conn.requestMethod = 'POST'
         conn.doOutput = true
-        conn.setRequestProperty('Title', 'Tree Shake Mod Built')
+        conn.setRequestProperty('Title', 'Unharvest Mod Built')
         conn.setRequestProperty('Tags', 'white_check_mark,package')
         conn.outputStream.withWriter('UTF-8') { writer ->
-            writer.write("Tree Shake mod build finished successfully for Minecraft ${project.minecraft_version}!")
+            writer.write("Unharvest mod build finished successfully for Minecraft ${project.minecraft_version}!")
         }
         def responseCode = conn.responseCode
         println "Notification sent to ntfy.sh/antigravity (Status: ${responseCode})"

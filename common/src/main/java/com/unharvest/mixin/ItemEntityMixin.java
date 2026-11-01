@@ -1,4 +1,4 @@
-package com.treeshake.mixin;
+package com.unharvest.mixin;
 
 import com.unharvest.UnharvestManager;
 import net.minecraft.world.entity.Entity;

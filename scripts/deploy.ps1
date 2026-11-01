@@ -57,7 +57,7 @@ if (-not (Test-Path $MultiMcModsDir)) {
 }
 
 # Remove older versions of mod in mods directory to prevent duplicate collisions
-Get-ChildItem -Path $MultiMcModsDir -Include "*unharvest*.jar","*treeshake*.jar" -File | ForEach-Object {
+Get-ChildItem -Path $MultiMcModsDir -Include "*unharvest*.jar" -File | ForEach-Object {
     if ($_.Name -ne $jarName) {
         Remove-Item -Path $_.FullName -Force
         Write-Host "[INFO] Removed older mod JAR: $($_.Name)" -ForegroundColor DarkGray

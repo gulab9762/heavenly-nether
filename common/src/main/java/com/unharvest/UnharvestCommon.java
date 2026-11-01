@@ -1,6 +1,6 @@
-package com.treeshake;
+package com.unharvest;
 
-public class TreeShakeCommon {
+public class UnharvestCommon {
     public static void init() {
         Constants.LOG.info("Initializing {}", Constants.MOD_NAME);
     }
