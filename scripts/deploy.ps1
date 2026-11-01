@@ -7,7 +7,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Deploying Tree Shake Mod [$Loader]" -ForegroundColor Cyan
+Write-Host " Deploying Unharvest Mod [$Loader]" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 $searchPath = switch ($Loader.ToLower()) {
@@ -22,7 +22,7 @@ if (-not (Test-Path $searchPath)) {
     exit 1
 }
 
-$jar = Get-ChildItem -Path $searchPath -Filter "*shake-*.jar" | 
+$jar = Get-ChildItem -Path $searchPath -Filter "*unharvest*.jar" | 
     Where-Object { $_.Name -notmatch "sources|javadoc" } | 
     Sort-Object LastWriteTime -Descending | 
     Select-Object -First 1
@@ -56,8 +56,8 @@ if (-not (Test-Path $MultiMcModsDir)) {
     New-Item -ItemType Directory -Path $MultiMcModsDir -Force | Out-Null
 }
 
-# Remove older versions of treeshake in mods directory to prevent duplicate collisions
-Get-ChildItem -Path $MultiMcModsDir -Filter "*treeshake*.jar" | ForEach-Object {
+# Remove older versions of mod in mods directory to prevent duplicate collisions
+Get-ChildItem -Path $MultiMcModsDir -Include "*unharvest*.jar","*treeshake*.jar" -File | ForEach-Object {
     if ($_.Name -ne $jarName) {
         Remove-Item -Path $_.FullName -Force
         Write-Host "[INFO] Removed older mod JAR: $($_.Name)" -ForegroundColor DarkGray

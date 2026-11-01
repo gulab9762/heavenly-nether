@@ -1,0 +1,15 @@
+{
+  "worldPreset.unharvest.unharvest_field": "Unharvest (Wheat Field)",
+  "item.unharvest.withering_scythe": "Withering Scythe",
+  "item.unharvest.withering_scythe.desc": "The touch of decay. Left-click wheat to wither it into a Wither Rose.",
+  "key.unharvest.category": "Unharvest",
+  "key.unharvest.upgrades": "Open Plague Upgrades Menu",
+  "unharvest.gui.title": "UNHARVEST - PLAGUE UPGRADES",
+  "unharvest.gui.essence": "Blight Essence: %s",
+  "unharvest.gui.progress": "Field Withered: %s / %s (%s%%)",
+  "unharvest.upgrade.speed": "Scythe Speed",
+  "unharvest.upgrade.radius": "Wither Radius",
+  "unharvest.upgrade.yield": "Essence Multiplier",
+  "unharvest.upgrade.chain": "Contagion Chain",
+  "unharvest.upgrade.swarm": "Locust Swarm"
+}

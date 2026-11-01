@@ -5,6 +5,8 @@ import com.treeshake.TreeShakeCommon;
 import com.treeshake.client.animation.tree.TreeShakeManager;
 import com.treeshake.client.config.TreeShakeConfig;
 import com.treeshake.client.gui.TreeShakeConfigScreen;
+import com.unharvest.UnharvestCommands;
+import com.unharvest.UnharvestManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -13,6 +15,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
@@ -41,7 +44,7 @@ public class TreeShakeForge {
             Constants.LOG.debug("[Tree Shake] Failed to attach lifecycle listeners for LootModifierManager: {}", t.getMessage());
         }
 
-        Constants.LOG.info("[Tree Shake Forge] Mod initialized on Minecraft Forge 26.3!");
+        Constants.LOG.info("[Unharvest Forge] Mod initialized on Minecraft Forge 26.3!");
     }
 
     public static void ensureLootModifierManagerInitialized(HolderLookup.Provider lookupProvider) {
@@ -63,6 +66,14 @@ public class TreeShakeForge {
         }
     }
 
+    @Mod.EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
+    public static class ClientModEvents {
+        @SubscribeEvent
+        public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+            event.register(UnharvestManager.UPGRADE_KEY);
+        }
+    }
+
     @Mod.EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class ClientEvents {
 
@@ -71,6 +82,7 @@ public class TreeShakeForge {
             Minecraft client = Minecraft.getInstance();
             if (client.level != null && !client.isPaused()) {
                 TreeShakeManager.tick(client.level);
+                UnharvestManager.tick(client.level, client.player);
             }
         }
 
@@ -101,6 +113,20 @@ public class TreeShakeForge {
                                     .executes(context -> showWhitelist(context.getSource()))
                             )
                             .executes(context -> toggleTreeShake(context.getSource()))
+            );
+
+            event.getDispatcher().register(
+                    Commands.literal("unharvest")
+                            .then(Commands.literal("upgrades")
+                                    .executes(context -> UnharvestCommands.openUpgrades())
+                            )
+                            .then(Commands.literal("scythe")
+                                    .executes(context -> UnharvestCommands.giveScythe(Minecraft.getInstance().player))
+                            )
+                            .then(Commands.literal("reset")
+                                    .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
+                            )
+                            .executes(context -> UnharvestCommands.openUpgrades())
             );
         }
 

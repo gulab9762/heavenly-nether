@@ -16,7 +16,7 @@
       ],
       "vmArgs": [
         "@C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\build\\moddev\\clientRunVmArgs.txt",
-        "-Dfml.modFolders\u003dtreeshake%%C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\bin\\main"
+        "-Dfml.modFolders\u003dunharvest%%C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\bin\\main"
       ],
       "cwd": "${workspaceFolder}\\neoforge\\run",
       "env": {},
@@ -38,7 +38,7 @@
       ],
       "vmArgs": [
         "@C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\build\\moddev\\serverRunVmArgs.txt",
-        "-Dfml.modFolders\u003dtreeshake%%C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\bin\\main"
+        "-Dfml.modFolders\u003dunharvest%%C:\\Users\\Gulab\\IdeaProjects\\block-place\\neoforge\\bin\\main"
       ],
       "cwd": "${workspaceFolder}\\neoforge\\run",
       "env": {},

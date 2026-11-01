@@ -5,23 +5,30 @@ import com.treeshake.TreeShakeCommon;
 import com.treeshake.client.animation.tree.TreeShakeManager;
 import com.treeshake.client.config.TreeShakeConfig;
 import com.treeshake.client.gui.TreeShakeConfigScreen;
+import com.unharvest.UnharvestCommands;
+import com.unharvest.UnharvestManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 
 @Mod(Constants.MOD_ID)
 public class TreeShakeNeoForge {
 
-    public TreeShakeNeoForge() {
+    public TreeShakeNeoForge(IEventBus modBus) {
         TreeShakeCommon.init();
+        modBus.addListener(RegisterKeyMappingsEvent.class, event -> {
+            event.register(UnharvestManager.UPGRADE_KEY);
+        });
     }
 
     @EventBusSubscriber(modid = Constants.MOD_ID, value = Dist.CLIENT)
@@ -32,6 +39,7 @@ public class TreeShakeNeoForge {
             Minecraft client = Minecraft.getInstance();
             if (client.level != null && !client.isPaused()) {
                 TreeShakeManager.tick(client.level);
+                UnharvestManager.tick(client.level, client.player);
             }
         }
 
@@ -62,6 +70,20 @@ public class TreeShakeNeoForge {
                                     .executes(context -> showWhitelist(context.getSource()))
                             )
                             .executes(context -> toggleTreeShake(context.getSource()))
+            );
+
+            event.getDispatcher().register(
+                    Commands.literal("unharvest")
+                            .then(Commands.literal("upgrades")
+                                    .executes(context -> UnharvestCommands.openUpgrades())
+                            )
+                            .then(Commands.literal("scythe")
+                                    .executes(context -> UnharvestCommands.giveScythe(Minecraft.getInstance().player))
+                            )
+                            .then(Commands.literal("reset")
+                                    .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
+                            )
+                            .executes(context -> UnharvestCommands.openUpgrades())
             );
         }
 
