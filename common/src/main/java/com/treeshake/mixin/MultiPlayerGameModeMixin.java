@@ -69,7 +69,7 @@ public abstract class MultiPlayerGameModeMixin {
             ItemStack held = this.minecraft.player.getMainHandItem();
             if (UnharvestItems.isWitheringScythe(held)) {
                 BlockState state = this.minecraft.level.getBlockState(pos);
-                if (UnharvestManager.isCrop(state) || state.is(Blocks.WITHER_ROSE)) {
+                if (UnharvestManager.isCrop(state) || state.is(Blocks.WITHER_ROSE) || state.is(Blocks.FARMLAND)) {
                     cir.setReturnValue(false);
                     return;
                 }

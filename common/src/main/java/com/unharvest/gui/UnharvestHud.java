@@ -22,12 +22,12 @@ public class UnharvestHud {
         Font font = client.font;
         UnharvestState state = UnharvestState.getInstance();
 
-        int x = 8;
-        int y = 8;
-        int width = 168;
+        int x = 10;
+        int y = 10;
+        int width = 180;
 
         boolean upgradeAvailable = isAnyUpgradeAvailable(state);
-        int height = upgradeAvailable ? 56 : 46;
+        int height = upgradeAvailable ? 54 : 42;
 
         // Background box: dark semi-transparent fill with purple border
         extractor.fill(x - 4, y - 4, x + width + 4, y + height + 4, 0x90000000);
@@ -36,23 +36,23 @@ public class UnharvestHud {
         extractor.fill(x - 5, y - 5, x - 4, y + height + 5, 0xCC6A2A9A); // left
         extractor.fill(x + width + 4, y - 5, x + width + 5, y + height + 5, 0xCC6A2A9A); // right
 
-        // 1. Mod Title
-        extractor.text(font, Component.literal("§5§lUNHARVEST §7| §fPlague Field"), x, y, 0xFFFFFF);
+        // 1. Mod Title (ARGB colors with 0xFF alpha!)
+        extractor.text(font, Component.literal("§5§lUNHARVEST §7| §dPlague Field"), x, y, 0xFFFFFFFF);
 
         // 2. Essence Count
-        extractor.text(font, Component.literal("§d✨ Essence: §f" + state.getFormattedEssence()), x, y + 13, 0xFFFFFF);
+        extractor.text(font, Component.literal("§d✨ Essence: §f" + state.getFormattedEssence()), x, y + 13, 0xFFFFFFFF);
 
         // 3. Field Clearance %
         extractor.text(font, Component.literal(String.format("§a🌿 Cleared: §f%.1f%% §7(%d/%d)",
-                state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFF);
+                state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFFFF);
 
         // 4. Upgrade Notification
         if (upgradeAvailable) {
-            long pulse = (System.currentTimeMillis() / 350) % 2;
+            long pulse = (System.currentTimeMillis() / 400) % 2;
             String icon = (pulse == 0) ? "§e▲" : "§6▲";
-            extractor.text(font, Component.literal(icon + " §eUpgrade Ready! §6[Press U]"), x, y + 40, 0xFFFFFF);
+            extractor.text(font, Component.literal(icon + " §eUpgrade Ready! §6[Press U]"), x, y + 38, 0xFFFFFFFF);
         } else {
-            extractor.text(font, Component.literal("§8Press [U] for Upgrades"), x, y + 37, 0x888888);
+            extractor.text(font, Component.literal("§7[U] Upgrades Menu"), x, y + 36, 0xFFAAAAAA);
         }
     }
 

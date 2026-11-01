@@ -9,6 +9,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -100,7 +101,7 @@ public class UnharvestManager {
             return true;
         }
 
-        // 3. Fallback: Check if wheat/wither rose is present at spawn in flat world
+        // 3. Flat world check: Check if wheat/wither rose is present at spawn
         if (server.getWorldData().isFlatWorld()) {
             int checkY = UnharvestFieldGenerator.getWheatY(level);
             BlockState checkState = level.getBlockState(new BlockPos(0, checkY, 0));
@@ -144,8 +145,20 @@ public class UnharvestManager {
             return true; // Cancel breaking so withered roses remain intact
         }
 
+        // If player clicked on farmland/ground beneath a crop, redirect target to the crop above!
         if (!isCrop(hitState)) {
-            return false;
+            BlockPos above = pos.above();
+            BlockState aboveState = level.getBlockState(above);
+            if (isCrop(aboveState)) {
+                pos = above;
+                hitState = aboveState;
+            } else if (aboveState.is(Blocks.WITHER_ROSE)) {
+                return true; // Crop above is already withered
+            } else if (hitState.is(Blocks.FARMLAND) || hitState.is(Blocks.COARSE_DIRT) || hitState.is(Blocks.SOUL_SOIL)) {
+                return true; // Protect field ground from breaking
+            } else {
+                return false;
+            }
         }
 
         // Anti-spam cooldown check
@@ -180,16 +193,18 @@ public class UnharvestManager {
         // 2. Queue AoE Radius crops in gradual delay waves
         int radius = state.getRadius();
         if (radius > 0) {
-            for (int r = 1; r <= radius; r++) {
-                int delay = r * 2; // 2 ticks per radius ring for smooth visual wave
-                for (int dx = -r; dx <= r; dx++) {
-                    for (int dz = -r; dz <= r; dz++) {
-                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
-                        BlockPos target = pos.offset(dx, 0, dz);
-                        if (isCrop(level.getBlockState(target)) && !PENDING_POSITIONS.contains(target)) {
-                            PENDING_POSITIONS.add(target.immutable());
-                            WITHER_QUEUE.add(new ScheduledWither(target.immutable(), delay));
-                        }
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    BlockPos target = pos.offset(dx, 0, dz);
+                    if (!isCrop(level.getBlockState(target)) && isCrop(level.getBlockState(target.above()))) {
+                        target = target.above();
+                    }
+                    if (isCrop(level.getBlockState(target)) && !PENDING_POSITIONS.contains(target)) {
+                        PENDING_POSITIONS.add(target.immutable());
+                        int dist = Math.max(Math.abs(dx), Math.abs(dz));
+                        int delay = dist * 2; // 2 ticks per distance step for smooth wave
+                        WITHER_QUEUE.add(new ScheduledWither(target.immutable(), delay));
                     }
                 }
             }
@@ -199,18 +214,21 @@ public class UnharvestManager {
         float contagionChance = state.getContagionChance();
         if (contagionChance > 0.0f) {
             RandomSource rand = level.getRandom();
-            List<BlockPos> currentWave = new ArrayList<>();
+            Set<BlockPos> currentWave = new HashSet<>();
             currentWave.add(pos);
 
             int cascadeSteps = 3;
             for (int step = 1; step <= cascadeSteps; step++) {
-                List<BlockPos> nextWave = new ArrayList<>();
+                Set<BlockPos> nextWave = new HashSet<>();
                 int delay = (radius + step) * 2;
 
                 for (BlockPos source : currentWave) {
                     if (rand.nextFloat() < contagionChance) {
                         for (Direction dir : Direction.Plane.HORIZONTAL) {
                             BlockPos side = source.relative(dir);
+                            if (!isCrop(level.getBlockState(side)) && isCrop(level.getBlockState(side.above()))) {
+                                side = side.above();
+                            }
                             if (isCrop(level.getBlockState(side)) && !PENDING_POSITIONS.contains(side)) {
                                 PENDING_POSITIONS.add(side.immutable());
                                 WITHER_QUEUE.add(new ScheduledWither(side.immutable(), delay));
@@ -347,25 +365,40 @@ public class UnharvestManager {
 
     /**
      * Withers a crop into a Wither Rose and converts the soil beneath into corrupted coarse dirt or soul soil.
+     * Updates both ClientLevel and Integrated ServerLevel to guarantee full synchronization.
      */
     public static boolean witherCrop(Level level, BlockPos pos) {
+        if (level == null || pos == null) return false;
+
         BlockState current = level.getBlockState(pos);
         if (!isCrop(current)) {
             return false;
         }
 
-        // Place Wither Rose
-        level.setBlock(pos, Blocks.WITHER_ROSE.defaultBlockState(), 3);
-
-        // Turn soil underneath into corrupted coarse dirt or soul soil
+        BlockState witherRose = Blocks.WITHER_ROSE.defaultBlockState();
         BlockPos below = pos.below();
         RandomSource random = level.getRandom();
         BlockState corruptedSoil = (random.nextFloat() < 0.25f)
                 ? Blocks.SOUL_SOIL.defaultBlockState()
                 : Blocks.COARSE_DIRT.defaultBlockState();
+
+        // 1. Update Client Level
+        level.setBlock(pos, witherRose, 3);
         level.setBlock(below, corruptedSoil, 3);
 
-        // Visual necrotic burst
+        // 2. Update Integrated Server Level (authoritative world state!)
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server != null) {
+            ServerLevel serverLevel = server.overworld();
+            if (serverLevel != null) {
+                server.execute(() -> {
+                    serverLevel.setBlock(pos, witherRose, 3);
+                    serverLevel.setBlock(below, corruptedSoil, 3);
+                });
+            }
+        }
+
+        // 3. Visual necrotic bursts
         for (int i = 0; i < 5; i++) {
             double px = pos.getX() + random.nextDouble();
             double py = pos.getY() + random.nextDouble() * 0.7;
