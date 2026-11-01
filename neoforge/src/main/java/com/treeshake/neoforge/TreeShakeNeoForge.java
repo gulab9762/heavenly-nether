@@ -28,6 +28,7 @@ public class TreeShakeNeoForge {
         TreeShakeCommon.init();
         modBus.addListener(RegisterKeyMappingsEvent.class, event -> {
             event.register(UnharvestManager.UPGRADE_KEY);
+            event.register(UnharvestManager.SWARM_KEY);
         });
     }
 
@@ -83,6 +84,9 @@ public class TreeShakeNeoForge {
                             )
                             .then(Commands.literal("reset")
                                     .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
+                            )
+                            .then(Commands.literal("regenerate")
+                                    .executes(context -> UnharvestCommands.regenerateField(Minecraft.getInstance().player))
                             )
                             .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );

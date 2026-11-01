@@ -22,6 +22,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,13 +32,19 @@ import java.util.*;
 /**
  * Core manager for the Unharvest reverse-farming gameplay mechanics:
  * world validation, delayed visual contagion spread, corrupted soil generation,
- * cooldown gating, and Locust Swarm automation.
+ * cooldown gating, and active placeable Locust Swarm ability.
  */
 public class UnharvestManager {
 
     public static final KeyMapping UPGRADE_KEY = new KeyMapping(
             "key.unharvest.upgrades",
             InputConstants.KEY_U,
+            KeyMapping.Category.GAMEPLAY
+    );
+
+    public static final KeyMapping SWARM_KEY = new KeyMapping(
+            "key.unharvest.swarm",
+            InputConstants.KEY_R,
             KeyMapping.Category.GAMEPLAY
     );
 
@@ -58,6 +66,24 @@ public class UnharvestManager {
 
     private static final List<ScheduledWither> WITHER_QUEUE = new ArrayList<>();
     private static final Set<BlockPos> PENDING_POSITIONS = new HashSet<>();
+
+    // Active Placeable Swarms
+    public static class ActiveSwarm {
+        public final BlockPos center;
+        public final int radius;
+        public final int devourRate;
+        public int ticksRemaining;
+
+        public ActiveSwarm(BlockPos center, int radius, int devourRate, int durationTicks) {
+            this.center = center;
+            this.radius = radius;
+            this.devourRate = devourRate;
+            this.ticksRemaining = durationTicks;
+        }
+    }
+
+    private static final List<ActiveSwarm> ACTIVE_SWARMS = new ArrayList<>();
+    private static int swarmCooldownTicks = 0;
 
     public static void markNextWorldAsUnharvest() {
         nextWorldIsUnharvest = true;
@@ -120,6 +146,8 @@ public class UnharvestManager {
         cachedWorldName = null;
         WITHER_QUEUE.clear();
         PENDING_POSITIONS.clear();
+        ACTIVE_SWARMS.clear();
+        swarmCooldownTicks = 0;
     }
 
     /**
@@ -217,7 +245,7 @@ public class UnharvestManager {
             Set<BlockPos> currentWave = new HashSet<>();
             currentWave.add(pos);
 
-            int cascadeSteps = 3;
+            int cascadeSteps = state.getContagionCascadeSteps();
             for (int step = 1; step <= cascadeSteps; step++) {
                 Set<BlockPos> nextWave = new HashSet<>();
                 int delay = (radius + step) * 2;
@@ -252,7 +280,9 @@ public class UnharvestManager {
     }
 
     /**
-     * Opens upgrades menu on right-click with Withering Scythe.
+     * Handles right-click with Withering Scythe:
+     * Shift+Right Click = Upgrades Menu
+     * Right Click = Deploys Locust Swarm (if unlocked and ready), or opens Upgrades
      */
     public static boolean onRightClick(Level level, Player player, InteractionHand hand) {
         if (player == null || level == null) return false;
@@ -260,6 +290,14 @@ public class UnharvestManager {
 
         ItemStack stack = player.getItemInHand(hand);
         if (UnharvestItems.isWitheringScythe(stack)) {
+            if (player.isShiftKeyDown()) {
+                openUpgradesScreen();
+                return true;
+            }
+            if (canDeploySwarm()) {
+                deploySwarm(level, player);
+                return true;
+            }
             openUpgradesScreen();
             return true;
         }
@@ -267,8 +305,80 @@ public class UnharvestManager {
         return false;
     }
 
+    // --- PLACEABLE LOCUST SWARM ABILITY ---
+
+    public static boolean canDeploySwarm() {
+        UnharvestState state = UnharvestState.getInstance();
+        return state.isSwarmUnlocked() && swarmCooldownTicks <= 0;
+    }
+
+    public static int getSwarmCooldownRemaining() {
+        return swarmCooldownTicks;
+    }
+
+    public static int getMaxSwarmCooldown() {
+        return UnharvestState.getInstance().getSwarmCooldownTicks();
+    }
+
+    public static float getSwarmCooldownFraction() {
+        int max = getMaxSwarmCooldown();
+        if (max <= 0) return 0.0f;
+        return (float) swarmCooldownTicks / (float) max;
+    }
+
+    public static boolean isSwarmReady() {
+        return UnharvestState.getInstance().isSwarmUnlocked() && swarmCooldownTicks <= 0;
+    }
+
+    public static boolean deploySwarm(Level level, Player player) {
+        if (level == null || player == null) return false;
+        if (!isUnharvestWorld(level)) return false;
+
+        UnharvestState state = UnharvestState.getInstance();
+        if (!state.isSwarmUnlocked()) {
+            player.sendOverlayMessage(Component.literal("§c[Locust Swarm] Locked! Unlock in Upgrades Menu [U]."));
+            return false;
+        }
+        if (swarmCooldownTicks > 0) {
+            player.sendOverlayMessage(Component.literal(String.format("§c[Locust Swarm] On cooldown! (%.1fs)", swarmCooldownTicks / 20.0f)));
+            return false;
+        }
+
+        HitResult hit = player.pick(24.0, 0.0f, false);
+        BlockPos target;
+        if (hit != null && hit.getType() == HitResult.Type.BLOCK) {
+            target = ((BlockHitResult) hit).getBlockPos();
+            if (!isCrop(level.getBlockState(target)) && isCrop(level.getBlockState(target.above()))) {
+                target = target.above();
+            }
+        } else {
+            BlockPos forward = player.blockPosition().relative(player.getDirection(), 6);
+            target = new BlockPos(forward.getX(), UnharvestFieldGenerator.getWheatY(level), forward.getZ());
+        }
+
+        int radius = state.getSwarmRadius();
+        int devourRate = state.getSwarmDevourRate();
+        ACTIVE_SWARMS.add(new ActiveSwarm(target.immutable(), radius, devourRate, 140)); // 7 seconds
+        swarmCooldownTicks = state.getSwarmCooldownTicks();
+
+        // Sound effects
+        level.playLocalSound(
+                target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
+                SoundEvents.BEE_LOOP, SoundSource.PLAYERS,
+                1.2f, 0.6f, false
+        );
+        level.playLocalSound(
+                target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
+                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
+                0.7f, 1.8f, false
+        );
+
+        player.sendOverlayMessage(Component.literal(String.format("§2§l🦗 Locust Swarm Unleashed! §aDevouring %d-block zone for 7s!", radius)));
+        return true;
+    }
+
     /**
-     * Ticks delayed contagion spread queue, idle automation, field setup, and keybinds.
+     * Ticks delayed contagion spread queue, active placeable swarms, field setup, and keybinds.
      */
     public static void tick(Level level, Player player) {
         if (level == null || player == null) return;
@@ -281,21 +391,30 @@ public class UnharvestManager {
             openUpgradesScreen();
         }
 
+        // Listen for Swarm Ability Keybind [R]
+        while (SWARM_KEY.consumeClick()) {
+            deploySwarm(level, player);
+        }
+
+        // Swarm cooldown tick
+        if (swarmCooldownTicks > 0) {
+            swarmCooldownTicks--;
+        }
+
         // 1. Process delayed withering spread queue (for beautiful visual cascading)
         if (!WITHER_QUEUE.isEmpty()) {
             tickWitherQueue(level, player);
         }
 
-        // 2. Initial field setup and scythe verification
+        // 2. Process active placed Locust Swarms
+        if (!ACTIVE_SWARMS.isEmpty()) {
+            tickActiveSwarms(level, player);
+        }
+
+        // 3. Initial field setup and scythe verification
         if (clientTickCount % 40 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
             UnharvestItems.ensurePlayerHasScythe(player);
-        }
-
-        // 3. Locust Swarm (Idle Automation)
-        UnharvestState state = UnharvestState.getInstance();
-        if (state.getSwarmLevel() > 0 && clientTickCount % state.getSwarmPeriodTicks() == 0) {
-            tickLocustSwarm(level, player, state);
         }
     }
 
@@ -334,32 +453,75 @@ public class UnharvestManager {
     }
 
     /**
-     * Periodic passive locust swarm that auto-seeks and withers nearby wheat.
+     * Ticks active placed locust swarms, spawning buzzing particle vortex
+     * and devouring crops inside its area of effect.
      */
-    private static void tickLocustSwarm(Level level, Player player, UnharvestState state) {
-        int countToWither = state.getSwarmWitherCount();
-        BlockPos playerPos = player.blockPosition();
+    private static void tickActiveSwarms(Level level, Player player) {
+        UnharvestState state = UnharvestState.getInstance();
+        RandomSource random = level.getRandom();
+        Iterator<ActiveSwarm> it = ACTIVE_SWARMS.iterator();
 
-        List<BlockPos> candidates = new ArrayList<>();
-        int searchRadius = 24;
+        while (it.hasNext()) {
+            ActiveSwarm swarm = it.next();
+            swarm.ticksRemaining--;
 
-        for (int x = -searchRadius; x <= searchRadius; x++) {
-            for (int z = -searchRadius; z <= searchRadius; z++) {
-                BlockPos check = new BlockPos(playerPos.getX() + x, UnharvestFieldGenerator.getWheatY(level), playerPos.getZ() + z);
-                if (isCrop(level.getBlockState(check)) && !PENDING_POSITIONS.contains(check)) {
-                    candidates.add(check);
+            // 1. Swarm particle vortex
+            for (int i = 0; i < 7; i++) {
+                double angle = random.nextDouble() * Math.PI * 2;
+                double r = random.nextDouble() * swarm.radius;
+                double px = swarm.center.getX() + 0.5 + Math.cos(angle) * r;
+                double py = swarm.center.getY() + 0.2 + random.nextDouble() * 2.0;
+                double pz = swarm.center.getZ() + 0.5 + Math.sin(angle) * r;
+
+                // Dark swirling swarm particles
+                level.addParticle(ParticleTypes.SQUID_INK, px, py, pz, -Math.sin(angle) * 0.1, 0.05, Math.cos(angle) * 0.1);
+                level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.03, 0);
+                if (random.nextFloat() < 0.35f) {
+                    level.addParticle(net.minecraft.core.particles.ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF40B040), px, py, pz, 0, 0.05, 0);
                 }
             }
-        }
 
-        if (candidates.isEmpty()) return;
-        candidates.sort(Comparator.comparingDouble(p -> p.distSqr(playerPos)));
+            // 2. Devour crops every 3 ticks
+            if (swarm.ticksRemaining % 3 == 0) {
+                int withered = 0;
+                int maxToWither = swarm.devourRate;
 
-        int limit = Math.min(countToWither, candidates.size());
-        for (int i = 0; i < limit; i++) {
-            BlockPos target = candidates.get(i);
-            PENDING_POSITIONS.add(target.immutable());
-            WITHER_QUEUE.add(new ScheduledWither(target.immutable(), (i + 1) * 2));
+                List<BlockPos> localCrops = new ArrayList<>();
+                for (int dx = -swarm.radius; dx <= swarm.radius; dx++) {
+                    for (int dz = -swarm.radius; dz <= swarm.radius; dz++) {
+                        if (dx * dx + dz * dz <= swarm.radius * swarm.radius) {
+                            BlockPos check = new BlockPos(swarm.center.getX() + dx, swarm.center.getY(), swarm.center.getZ() + dz);
+                            if (isCrop(level.getBlockState(check))) {
+                                localCrops.add(check);
+                            }
+                        }
+                    }
+                }
+
+                Collections.shuffle(localCrops);
+                for (BlockPos target : localCrops) {
+                    if (witherCrop(level, target)) {
+                        withered++;
+                        if (withered >= maxToWither) break;
+                    }
+                }
+
+                if (withered > 0) {
+                    long earned = (long) withered * state.getYieldMultiplier();
+                    state.addEssence(earned);
+                    state.recordWithered(withered);
+
+                    level.playLocalSound(
+                            swarm.center.getX() + 0.5, swarm.center.getY() + 0.5, swarm.center.getZ() + 0.5,
+                            SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
+                            0.5f, 1.4f, false
+                    );
+                }
+            }
+
+            if (swarm.ticksRemaining <= 0) {
+                it.remove();
+            }
         }
     }
 

@@ -40,4 +40,24 @@ public class UnharvestCommands {
         }
         return 1;
     }
+
+    public static int regenerateField(Player player) {
+        if (player != null && !UnharvestManager.isUnharvestWorld(player.level())) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
+            return 0;
+        }
+        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
+        if (server != null) {
+            net.minecraft.server.level.ServerLevel level = server.overworld();
+            if (level != null) {
+                UnharvestFieldGenerator.forceRegenerateField(server, level);
+                if (player != null) {
+                    player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aField regenerated and cleared of all structure obstructions!"));
+                }
+                return 1;
+            }
+        }
+        return 0;
+    }
 }

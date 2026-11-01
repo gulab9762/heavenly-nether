@@ -4,6 +4,7 @@
   "item.unharvest.withering_scythe.desc": "The touch of decay. Left-click wheat to wither it into a Wither Rose.",
   "key.unharvest.category": "Unharvest",
   "key.unharvest.upgrades": "Open Plague Upgrades Menu",
+  "key.unharvest.swarm": "Deploy Locust Swarm",
   "unharvest.gui.title": "UNHARVEST - PLAGUE UPGRADES",
   "unharvest.gui.essence": "Blight Essence: %s",
   "unharvest.gui.progress": "Field Withered: %s / %s (%s%%)",

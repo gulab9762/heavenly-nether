@@ -71,6 +71,7 @@ public class TreeShakeForge {
         @SubscribeEvent
         public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
             event.register(UnharvestManager.UPGRADE_KEY);
+            event.register(UnharvestManager.SWARM_KEY);
         }
     }
 
@@ -126,6 +127,9 @@ public class TreeShakeForge {
                             )
                             .then(Commands.literal("reset")
                                     .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
+                            )
+                            .then(Commands.literal("regenerate")
+                                    .executes(context -> UnharvestCommands.regenerateField(Minecraft.getInstance().player))
                             )
                             .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );

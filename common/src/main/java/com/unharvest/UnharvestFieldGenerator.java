@@ -133,11 +133,27 @@ public class UnharvestFieldGenerator {
                 BlockPos cropPos = new BlockPos(x, cropY, z);
 
                 if (dist <= shapeRadius) {
-                    // Inside the wheat field
+                    // 1. Clear any structure blocks / debris floating above the field (e.g. trial chambers)
+                    for (int clearY = cropY + 1; clearY <= cropY + 45; clearY++) {
+                        BlockPos abovePos = new BlockPos(x, clearY, z);
+                        if (!serverLevel.getBlockState(abovePos).isAir()) {
+                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                        }
+                    }
+
+                    // 2. Inside the wheat field: place farmland and mature wheat
                     serverLevel.setBlock(floorPos, moistFarmland, 2);
                     serverLevel.setBlock(cropPos, matureWheat, 2);
                     totalPlacedCrops++;
                 } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
+                    // Clear air above border as well
+                    for (int clearY = cropY + 2; clearY <= cropY + 30; clearY++) {
+                        BlockPos abovePos = new BlockPos(x, clearY, z);
+                        if (!serverLevel.getBlockState(abovePos).isAir()) {
+                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                        }
+                    }
+
                     // Irregular coarse dirt perimeter border
                     serverLevel.setBlock(floorPos, coarseDirt, 2);
                     if (!serverLevel.getBlockState(cropPos).isAir()) {
@@ -176,6 +192,15 @@ public class UnharvestFieldGenerator {
                     totalPlacedCrops
             )));
         }
+    }
+
+    public static void forceRegenerateField(MinecraftServer server, ServerLevel serverLevel) {
+        Path saveDir = server.getWorldPath(LevelResource.ROOT);
+        Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
+        try {
+            Files.deleteIfExists(markerFile);
+        } catch (Exception ignored) {}
+        generateSpawnField(server, serverLevel, markerFile);
     }
 
     public static void clearCache() {

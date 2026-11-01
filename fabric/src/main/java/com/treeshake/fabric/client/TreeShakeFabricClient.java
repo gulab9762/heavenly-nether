@@ -25,8 +25,9 @@ public class TreeShakeFabricClient implements ClientModInitializer {
         // Load persisted config on client startup
         TreeShakeConfig.load();
 
-        // Register Keybinding
+        // Register Keybindings
         KeyMappingHelper.registerKeyMapping(UnharvestManager.UPGRADE_KEY);
+        KeyMappingHelper.registerKeyMapping(UnharvestManager.SWARM_KEY);
 
         // Tick animations and Unharvest gameplay loop every client game tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -74,6 +75,9 @@ public class TreeShakeFabricClient implements ClientModInitializer {
                             )
                             .then(ClientCommands.literal("reset")
                                     .executes(context -> UnharvestCommands.reset(Minecraft.getInstance().player))
+                            )
+                            .then(ClientCommands.literal("regenerate")
+                                    .executes(context -> UnharvestCommands.regenerateField(Minecraft.getInstance().player))
                             )
                             .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );

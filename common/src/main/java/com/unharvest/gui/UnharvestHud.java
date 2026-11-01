@@ -8,9 +8,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /**
- * Top-left in-game HUD overlay displaying live Unharvest progression:
- * Blight Essence balance, field clearance %, and real-time alerts
- * when new upgrades become affordable.
+ * In-game HUD overlay for Unharvest:
+ * - Top-left: Blight Essence balance, field clearance %, and upgrade ready alerts
+ * - Bottom-right: Placeable Locust Swarm ability card with real-time cooldown sweep
  */
 public class UnharvestHud {
 
@@ -22,6 +22,14 @@ public class UnharvestHud {
         Font font = client.font;
         UnharvestState state = UnharvestState.getInstance();
 
+        // 1. Top-Left Progression Card
+        renderTopLeftHud(extractor, font, state);
+
+        // 2. Bottom-Right Ability Card: Locust Swarm
+        renderSwarmAbilityCard(extractor, client, font, state);
+    }
+
+    private static void renderTopLeftHud(GuiGraphicsExtractor extractor, Font font, UnharvestState state) {
         int x = 10;
         int y = 10;
         int width = 180;
@@ -36,17 +44,17 @@ public class UnharvestHud {
         extractor.fill(x - 5, y - 5, x - 4, y + height + 5, 0xCC6A2A9A); // left
         extractor.fill(x + width + 4, y - 5, x + width + 5, y + height + 5, 0xCC6A2A9A); // right
 
-        // 1. Mod Title (ARGB colors with 0xFF alpha!)
+        // Title
         extractor.text(font, Component.literal("§5§lUNHARVEST §7| §dPlague Field"), x, y, 0xFFFFFFFF);
 
-        // 2. Essence Count
+        // Essence Count
         extractor.text(font, Component.literal("§d✨ Essence: §f" + state.getFormattedEssence()), x, y + 13, 0xFFFFFFFF);
 
-        // 3. Field Clearance %
+        // Field Clearance %
         extractor.text(font, Component.literal(String.format("§a🌿 Cleared: §f%.1f%% §7(%d/%d)",
                 state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFFFF);
 
-        // 4. Upgrade Notification
+        // Upgrade Notification
         if (upgradeAvailable) {
             long pulse = (System.currentTimeMillis() / 400) % 2;
             String icon = (pulse == 0) ? "§e▲" : "§6▲";
@@ -56,13 +64,72 @@ public class UnharvestHud {
         }
     }
 
+    private static void renderSwarmAbilityCard(GuiGraphicsExtractor extractor, Minecraft client, Font font, UnharvestState state) {
+        int screenWidth = client.getWindow().getGuiScaledWidth();
+        int screenHeight = client.getWindow().getGuiScaledHeight();
+
+        int size = 44;
+        int x = screenWidth - size - 16;
+        int y = screenHeight - size - 16;
+
+        boolean unlocked = state.isSwarmUnlocked();
+        int remainingTicks = UnharvestManager.getSwarmCooldownRemaining();
+        boolean onCooldown = unlocked && (remainingTicks > 0);
+
+        // Background box
+        int bgColor = unlocked ? 0xD0101810 : 0xAA181818;
+        extractor.fill(x, y, x + size, y + size, bgColor);
+
+        // Border color
+        int borderColor;
+        if (!unlocked) {
+            borderColor = 0xFF444444;
+        } else if (onCooldown) {
+            borderColor = 0xFF2A502A;
+        } else {
+            long pulse = (System.currentTimeMillis() / 300) % 2;
+            borderColor = (pulse == 0) ? 0xFF3BD848 : 0xFF28A834;
+        }
+
+        // Draw 1px border
+        extractor.fill(x, y, x + size, y + 1, borderColor);
+        extractor.fill(x, y + size - 1, x + size, y + size, borderColor);
+        extractor.fill(x, y, x + 1, y + size, borderColor);
+        extractor.fill(x + size - 1, y, x + size, y + size, borderColor);
+
+        // Icon
+        int iconY = y + 8;
+        if (!unlocked) {
+            extractor.centeredText(font, Component.literal("§8🔒"), x + size / 2, iconY, 0xFFFFFFFF);
+            extractor.centeredText(font, Component.literal("§8[R] Swarm"), x + size / 2, y + 27, 0xFFAAAAAA);
+        } else {
+            // Locust icon
+            extractor.centeredText(font, Component.literal("§a🦗"), x + size / 2, iconY, 0xFFFFFFFF);
+
+            // Keybind badge [R] at top-right
+            extractor.fill(x + size - 12, y + 2, x + size - 2, y + 10, 0xAA000000);
+            extractor.text(font, Component.literal("§eR"), x + size - 9, y + 2, 0xFFFFFFFF);
+
+            if (onCooldown) {
+                // Cooldown radial wipe overlay
+                float frac = UnharvestManager.getSwarmCooldownFraction();
+                int overlayHeight = (int) (frac * (size - 2));
+                extractor.fill(x + 1, y + size - 1 - overlayHeight, x + size - 1, y + size - 1, 0x90000000);
+
+                // Remaining seconds countdown
+                float seconds = remainingTicks / 20.0f;
+                String timeStr = String.format("%.1fs", seconds);
+                extractor.centeredText(font, Component.literal("§e" + timeStr), x + size / 2, y + 27, 0xFFFFFFFF);
+            } else {
+                extractor.centeredText(font, Component.literal("§aREADY"), x + size / 2, y + 27, 0xFFFFFFFF);
+            }
+        }
+    }
+
     public static boolean isAnyUpgradeAvailable(UnharvestState state) {
-        long essence = state.getEssence();
-        if (state.getSpeedLevel() < state.getMaxSpeedLevel() && essence >= state.getSpeedCost()) return true;
-        if (state.getRadiusLevel() < state.getMaxRadiusLevel() && essence >= state.getRadiusCost()) return true;
-        if (state.getYieldLevel() < state.getMaxYieldLevel() && essence >= state.getYieldCost()) return true;
-        if (state.getChainLevel() < state.getMaxChainLevel() && essence >= state.getChainCost()) return true;
-        if (state.getSwarmLevel() < state.getMaxSwarmLevel() && essence >= state.getSwarmCost()) return true;
+        for (String id : UnharvestState.NODES.keySet()) {
+            if (state.canUnlockNode(id)) return true;
+        }
         return false;
     }
 }
