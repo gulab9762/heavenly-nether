@@ -61,9 +61,16 @@ public class UnharvestUpgradeScreen extends Screen {
         }
     }
 
+    private void playErrorSound() {
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BASS, 0.8f));
+        }
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean isDown) {
-        if (event.button() == 0) { // Left-click
+        // In Minecraft 26.3 MouseButtonInfo: button 1 is left click (button 0 in legacy GLFW)
+        if (event.button() <= 1 || event.input() <= 1) {
             double mouseX = event.x();
             double mouseY = event.y();
             UnharvestState state = UnharvestState.getInstance();
@@ -73,15 +80,21 @@ public class UnharvestUpgradeScreen extends Screen {
             int sy = 24;
 
             for (UpgradeNode node : UnharvestState.NODES.values()) {
+                if (!state.isNodeRevealed(node.id)) continue;
+
                 int nx = originX + (int) (node.gridX * sx) - NODE_SIZE / 2;
                 int ny = originY + (int) (node.gridY * sy) - NODE_SIZE / 2;
 
-                if (mouseX >= nx && mouseX < nx + NODE_SIZE && mouseY >= ny && mouseY < ny + NODE_SIZE) {
+                // Generous click hitbox with 2px margin
+                if (mouseX >= nx - 2 && mouseX <= nx + NODE_SIZE + 2 && mouseY >= ny - 2 && mouseY <= ny + NODE_SIZE + 2) {
                     if (state.canUnlockNode(node.id)) {
                         if (state.unlockNode(node.id)) {
                             playUpgradeSound();
                             return true;
                         }
+                    } else if (!state.isNodeUnlocked(node.id)) {
+                        playErrorSound();
+                        return true;
                     }
                 }
             }
@@ -112,8 +125,10 @@ public class UnharvestUpgradeScreen extends Screen {
         int sx = 25;
         int sy = 24;
 
-        // 1. Draw Connecting Lines First
+        // 1. Draw Connecting Lines (Only for revealed nodes!)
         for (UpgradeNode node : UnharvestState.NODES.values()) {
+            if (!state.isNodeRevealed(node.id)) continue;
+
             int cx = originX + (int) (node.gridX * sx);
             int cy = originY + (int) (node.gridY * sy);
             boolean childUnlocked = state.isNodeUnlocked(node.id);
@@ -121,6 +136,7 @@ public class UnharvestUpgradeScreen extends Screen {
             for (String parentId : node.parents) {
                 UpgradeNode parent = UnharvestState.NODES.get(parentId);
                 if (parent == null) continue;
+                if (!state.isNodeRevealed(parent.id)) continue;
 
                 int px = originX + (int) (parent.gridX * sx);
                 int py = originY + (int) (parent.gridY * sy);
@@ -144,12 +160,14 @@ public class UnharvestUpgradeScreen extends Screen {
             }
         }
 
-        // 2. Draw Nodes
+        // 2. Draw Nodes (Only revealed nodes are shown!)
         UpgradeNode hoveredNode = null;
         int hoveredNx = 0;
         int hoveredNy = 0;
 
         for (UpgradeNode node : UnharvestState.NODES.values()) {
+            if (!state.isNodeRevealed(node.id)) continue;
+
             int nx = originX + (int) (node.gridX * sx) - NODE_SIZE / 2;
             int ny = originY + (int) (node.gridY * sy) - NODE_SIZE / 2;
 

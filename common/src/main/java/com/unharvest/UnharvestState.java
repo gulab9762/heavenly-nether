@@ -236,6 +236,22 @@ public class UnharvestState {
         return unlockedNodes.contains(id);
     }
 
+    public synchronized boolean isNodeRevealed(String id) {
+        if ("skull".equals(id)) return true;
+        if (isNodeUnlocked(id)) return true;
+
+        UpgradeNode node = NODES.get(id);
+        if (node == null) return false;
+
+        // Revealed only if at least one parent in the chain has been unlocked
+        for (String parent : node.parents) {
+            if (isNodeUnlocked(parent)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public synchronized boolean canUnlockNode(String id) {
         UpgradeNode node = NODES.get(id);
         if (node == null) return false;

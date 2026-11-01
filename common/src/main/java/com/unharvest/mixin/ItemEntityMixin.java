@@ -69,3 +69,4 @@ public abstract class ItemEntityMixin extends Entity {
                 || item.is(Items.POISONOUS_POTATO);
     }
 }
+
