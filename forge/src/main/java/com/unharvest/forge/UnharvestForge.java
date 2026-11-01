@@ -102,6 +102,16 @@ public class UnharvestForge {
                             .then(Commands.literal("regenerate")
                                     .executes(context -> UnharvestCommands.regenerateField(Minecraft.getInstance().player))
                             )
+                            // [DEBUG COMMAND - Comment out before final production release]
+                            .then(Commands.literal("essence")
+                                    .then(Commands.argument("amount", com.mojang.brigadier.arguments.LongArgumentType.longArg(1))
+                                            .executes(context -> UnharvestCommands.giveEssence(
+                                                    Minecraft.getInstance().player,
+                                                    com.mojang.brigadier.arguments.LongArgumentType.getLong(context, "amount")
+                                            ))
+                                    )
+                                    .executes(context -> UnharvestCommands.giveEssence(Minecraft.getInstance().player, 1000L))
+                            )
                             .executes(context -> UnharvestCommands.openUpgrades(Minecraft.getInstance().player))
             );
         }

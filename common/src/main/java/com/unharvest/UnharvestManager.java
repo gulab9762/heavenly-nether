@@ -85,6 +85,28 @@ public class UnharvestManager {
     private static final List<ActiveSwarm> ACTIVE_SWARMS = new ArrayList<>();
     private static int swarmCooldownTicks = 0;
 
+    // Rolling essence tracker so cascading waves dynamically count up on screen
+    private static long recentEarnedEssence = 0;
+    private static int recentResetCooldown = 0;
+
+    public static void registerEssenceEarned(Player player, int cropsWithered) {
+        if (cropsWithered <= 0) return;
+        UnharvestState state = UnharvestState.getInstance();
+        long earned = (long) cropsWithered * state.getYieldMultiplier();
+        state.addEssence(earned);
+        state.recordWithered(cropsWithered);
+
+        recentEarnedEssence += earned;
+        recentResetCooldown = 35; // Accumulate for 1.75s across the full wave
+
+        if (player != null) {
+            player.sendOverlayMessage(
+                    Component.literal(String.format("§5§lUnharvest §7| §d+%,d Essence §7(Total: §d%s§7) | §aCleared: §f%.1f%%",
+                            recentEarnedEssence, state.getFormattedEssence(), state.getClearedPercentage()))
+            );
+        }
+    }
+
     public static void markNextWorldAsUnharvest() {
         nextWorldIsUnharvest = true;
     }
@@ -203,20 +225,7 @@ public class UnharvestManager {
 
         // 1. Immediate primary strike
         witherCrop(level, pos);
-        long earned = state.getYieldMultiplier();
-        state.addEssence(earned);
-        state.recordWithered(1);
-
-        level.playLocalSound(
-                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
-                0.35f, 1.8f, false
-        );
-        level.playLocalSound(
-                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
-                0.8f, 0.7f, false
-        );
+        registerEssenceEarned(player, 1);
 
         // 2. Queue AoE Radius crops in gradual delay waves
         int radius = state.getRadius();
@@ -269,12 +278,6 @@ public class UnharvestManager {
                 if (currentWave.isEmpty()) break;
             }
         }
-
-        // Feedback action-bar
-        player.sendOverlayMessage(
-                Component.literal(String.format("§5§lUnharvest §7| §d+%d Essence §7(Total: §d%s§7) | §aCleared: §f%.1f%%",
-                        earned, state.getFormattedEssence(), state.getClearedPercentage()))
-        );
 
         return true;
     }
@@ -401,6 +404,14 @@ public class UnharvestManager {
             swarmCooldownTicks--;
         }
 
+        // Rolling essence overlay decay
+        if (recentResetCooldown > 0) {
+            recentResetCooldown--;
+            if (recentResetCooldown == 0) {
+                recentEarnedEssence = 0;
+            }
+        }
+
         // 1. Process delayed withering spread queue (for beautiful visual cascading)
         if (!WITHER_QUEUE.isEmpty()) {
             tickWitherQueue(level, player);
@@ -438,9 +449,7 @@ public class UnharvestManager {
         }
 
         if (witheredThisTick > 0) {
-            long earned = (long) witheredThisTick * state.getYieldMultiplier();
-            state.addEssence(earned);
-            state.recordWithered(witheredThisTick);
+            registerEssenceEarned(player, witheredThisTick);
 
             // Soft decay sound
             BlockPos p = player.blockPosition();
@@ -507,9 +516,7 @@ public class UnharvestManager {
                 }
 
                 if (withered > 0) {
-                    long earned = (long) withered * state.getYieldMultiplier();
-                    state.addEssence(earned);
-                    state.recordWithered(withered);
+                    registerEssenceEarned(player, withered);
 
                     level.playLocalSound(
                             swarm.center.getX() + 0.5, swarm.center.getY() + 0.5, swarm.center.getZ() + 0.5,
@@ -569,6 +576,56 @@ public class UnharvestManager {
             level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.03, 0);
             level.addParticle(ParticleTypes.PORTAL, px, py, pz, (random.nextDouble() - 0.5) * 0.1, 0.05, (random.nextDouble() - 0.5) * 0.1);
         }
+
+        // 4. Soul / essence particles streaming from withered crop into the player
+        Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            double targetX = player.getX();
+            double targetY = player.getY() + 0.85; // Player chest / hands height
+            double targetZ = player.getZ();
+
+            double startX = pos.getX() + 0.5;
+            double startY = pos.getY() + 0.35;
+            double startZ = pos.getZ() + 0.5;
+
+            double dx = targetX - startX;
+            double dy = targetY - startY;
+            double dz = targetZ - startZ;
+            double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            if (dist > 0.1) {
+                double speed = 0.45;
+                double vx = (dx / dist) * speed;
+                double vy = (dy / dist) * speed + 0.05;
+                double vz = (dz / dist) * speed;
+
+                level.addParticle(ParticleTypes.SCULK_SOUL, startX, startY, startZ, vx, vy, vz);
+                level.addParticle(ParticleTypes.SOUL, startX, startY, startZ, vx * 0.85, vy * 0.85, vz * 0.85);
+                level.addParticle(ParticleTypes.WITCH, startX, startY, startZ, vx * 0.7, vy * 0.7, vz * 0.7);
+            }
+        }
+
+        // 5. Visceral organic tearing and squelching sounds (flesh-decay like Unharvest)
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.SLIME_SQUISH, SoundSource.BLOCKS,
+                0.75f, 0.85f, false
+        );
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.WART_BLOCK_BREAK, SoundSource.BLOCKS,
+                0.85f, 0.75f, false
+        );
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.FUNGUS_BREAK, SoundSource.BLOCKS,
+                0.6f, 0.65f, false
+        );
+        level.playLocalSound(
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
+                0.2f, 1.9f, false
+        );
 
         return true;
     }

@@ -60,4 +60,18 @@ public class UnharvestCommands {
         }
         return 0;
     }
+
+    // =========================================================================
+    // [DEBUG COMMAND - Comment out before final production release]
+    // =========================================================================
+    public static int giveEssence(Player player, long amount) {
+        if (player != null) {
+            UnharvestState.getInstance().addEssence(amount);
+            player.sendSystemMessage(Component.literal(String.format(
+                    "§5§l[Unharvest DEBUG] §aAdded §d+%,d§a Blight Essence! (Total: §d%s§a)",
+                    amount, UnharvestState.getInstance().getFormattedEssence()
+            )));
+        }
+        return 1;
+    }
 }

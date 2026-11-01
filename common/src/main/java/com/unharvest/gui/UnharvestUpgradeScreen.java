@@ -13,6 +13,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -250,7 +251,7 @@ public class UnharvestUpgradeScreen extends Screen {
         boolean unlocked = state.isNodeUnlocked(node.id);
         boolean canUnlock = state.canUnlockNode(node.id);
 
-        List<Component> lines = new ArrayList<>();
+        List<FormattedCharSequence> lines = new ArrayList<>();
 
         // 1. Title
         String catColor = switch (node.category) {
@@ -259,41 +260,47 @@ public class UnharvestUpgradeScreen extends Screen {
             case SCYTHE -> "§e";
             default -> "§f";
         };
-        lines.add(Component.literal(catColor + "§l" + node.title));
+        lines.add(Component.literal(catColor + "§l" + node.title).getVisualOrderText());
 
         // 2. Status Badge
         if (unlocked) {
-            lines.add(Component.literal("§a✔ UNLOCKED"));
+            lines.add(Component.literal("§a✔ UNLOCKED").getVisualOrderText());
         } else if (canUnlock) {
-            lines.add(Component.literal(String.format("§e★ CLICK TO UNLOCK §d- %d Essence", node.cost)));
+            lines.add(Component.literal(String.format("§e★ CLICK TO UNLOCK §d- %d Essence", node.cost)).getVisualOrderText());
         } else if (state.getEssence() < node.cost) {
-            lines.add(Component.literal(String.format("§c✖ Requires %d Essence §7(Have: %s)", node.cost, state.getFormattedEssence())));
+            lines.add(Component.literal(String.format("§c✖ Requires %d Essence §7(Have: %s)", node.cost, state.getFormattedEssence())).getVisualOrderText());
         } else {
-            lines.add(Component.literal("§8🔒 LOCKED (Requires previous node)"));
+            lines.add(Component.literal("§8🔒 LOCKED (Requires previous node)").getVisualOrderText());
         }
 
-        // 3. Description
-        lines.add(Component.literal("§7" + node.description));
+        // 3. Description (Wrapped to 180px max so it never extends beyond the screen!)
+        int maxTextWidth = Math.min(180, this.width - 32);
+        List<FormattedCharSequence> descLines = font.split(Component.literal("§7" + node.description), maxTextWidth);
+        lines.addAll(descLines);
 
         // Compute tooltip dimensions
         int maxW = 0;
-        for (Component c : lines) {
-            int w = font.width(c);
+        for (FormattedCharSequence line : lines) {
+            int w = font.width(line);
             if (w > maxW) maxW = w;
         }
 
         int tipW = maxW + 12;
         int tipH = lines.size() * 12 + 8;
 
+        // Position tooltip to the right or left of cursor
         int tipX = mouseX + 12;
-        int tipY = mouseY - 12;
-
         if (tipX + tipW > this.width - 6) {
             tipX = mouseX - tipW - 8;
         }
+        int tipY = mouseY - 12;
         if (tipY + tipH > this.height - 6) {
             tipY = this.height - tipH - 6;
         }
+
+        // STRICT CLAMP to screen boundaries: NEVER bleed off the left, right, top, or bottom!
+        tipX = Math.max(6, Math.min(tipX, this.width - tipW - 6));
+        tipY = Math.max(6, Math.min(tipY, this.height - tipH - 6));
 
         // Tooltip box background with border
         extractor.fill(tipX - 1, tipY - 1, tipX + tipW + 1, tipY + tipH + 1, 0xFF4A3B66);
