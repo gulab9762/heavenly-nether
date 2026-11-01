@@ -131,3 +131,4 @@ This document outlines architectural patterns, modern Minecraft API quirks, perf
    - Check if `javaw.exe` is currently holding an exclusive lock on the mod archive before copying.
    - Hot-copying over an in-memory mapped jar can corrupt the JVM zip file header (`ZipException: invalid LOC header`).
    - Copy to `<instance-dir>\.minecraft\mods\` cleanly.
+

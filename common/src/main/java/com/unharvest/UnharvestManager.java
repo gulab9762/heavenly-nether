@@ -362,11 +362,6 @@ public class UnharvestManager {
                 SoundEvents.BEE_LOOP, SoundSource.PLAYERS,
                 1.2f, 0.6f, false
         );
-        level.playLocalSound(
-                target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
-                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
-                0.7f, 1.8f, false
-        );
 
         player.sendOverlayMessage(Component.literal(String.format("§2§l🦗 Locust Swarm Unleashed! §aDevouring %d-block zone for 7s!", radius)));
         return true;
@@ -453,14 +448,6 @@ public class UnharvestManager {
 
         if (witheredThisTick > 0) {
             registerEssenceEarned(player, witheredThisTick);
-
-            // Soft decay sound
-            BlockPos p = player.blockPosition();
-            level.playLocalSound(
-                    p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5,
-                    SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
-                    0.4f, 0.6f, false
-            );
         }
     }
 
@@ -608,26 +595,12 @@ public class UnharvestManager {
             }
         }
 
-        // 5. Visceral organic tearing and squelching sounds (flesh-decay like Unharvest)
+        // 5. Authentic wheat harvest sound for each wheat crop getting withered (primary and chain cascades)
+        float harvestPitch = 0.88f + (level.getRandom().nextFloat() * 0.24f);
         level.playLocalSound(
                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.SLIME_SQUISH, SoundSource.BLOCKS,
-                0.75f, 0.85f, false
-        );
-        level.playLocalSound(
-                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.WART_BLOCK_BREAK, SoundSource.BLOCKS,
-                0.85f, 0.75f, false
-        );
-        level.playLocalSound(
-                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.FUNGUS_BREAK, SoundSource.BLOCKS,
-                0.6f, 0.65f, false
-        );
-        level.playLocalSound(
-                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                SoundEvents.WITHER_AMBIENT, SoundSource.PLAYERS,
-                0.2f, 1.9f, false
+                SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
+                1.0f, harvestPitch, false
         );
 
         return true;
