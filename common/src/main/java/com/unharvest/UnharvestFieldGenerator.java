@@ -9,6 +9,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
@@ -19,12 +20,18 @@ import net.minecraft.world.level.storage.LevelResource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Generates an expanded organic wheat arena (~9,000+ crops) at world spawn
  * with atmospheric farm structures (Dutch Windmill and rustic Farmer's Barn/House),
  * walking dirt paths, coarse dirt perimeter, and Peaceful difficulty.
- * Also provides dynamic field rescanning for 100% accuracy.
+ *
+ * Updates the world progressively in chunks across ticks to eliminate lag spikes,
+ * displaying real-time population percentages on the action bar and HUD.
  */
 public class UnharvestFieldGenerator {
 
@@ -37,6 +44,29 @@ public class UnharvestFieldGenerator {
     public static final int HOUSE_X = -26;
     public static final int HOUSE_Z = 24;
 
+    // Chunked Asynchronous Generation State
+    public static class ChunkCoord {
+        public final int x;
+        public final int z;
+        public final int distSq;
+
+        public ChunkCoord(int x, int z) {
+            this.x = x;
+            this.z = z;
+            this.distSq = x * x + z * z;
+        }
+    }
+
+    private static boolean isGenerating = false;
+    private static int totalPlacedCrops = 0;
+    private static final List<ChunkCoord> pendingChunks = new ArrayList<>();
+    private static int totalChunksToProcess = 0;
+    private static int processedChunksCount = 0;
+    private static int currentGroundY = 0;
+    private static int currentCropY = 0;
+    private static Path currentMarkerFile = null;
+    private static final int CHUNKS_PER_TICK = 3;
+
     public static class RescanResult {
         public final int total;
         public final int withered;
@@ -47,6 +77,26 @@ public class UnharvestFieldGenerator {
             this.withered = withered;
             this.remaining = remaining;
         }
+    }
+
+    public static boolean isGenerating() {
+        return isGenerating;
+    }
+
+    public static float getGenerationProgress() {
+        if (!isGenerating || totalChunksToProcess <= 0) return 1.0f;
+        return (float) processedChunksCount / (float) totalChunksToProcess;
+    }
+
+    public static int getGenerationPercent() {
+        return Math.min(100, (int) (getGenerationProgress() * 100));
+    }
+
+    public static void stopGeneration() {
+        isGenerating = false;
+        pendingChunks.clear();
+        processedChunksCount = 0;
+        totalChunksToProcess = 0;
     }
 
     /**
@@ -75,9 +125,6 @@ public class UnharvestFieldGenerator {
         return getGroundY(level) + 1;
     }
 
-    /**
-     * Distance to line segment for organic walking paths.
-     */
     private static double distToSegment(double px, double pz, double x1, double z1, double x2, double z2) {
         double dx = x2 - x1;
         double dz = z2 - z1;
@@ -97,11 +144,9 @@ public class UnharvestFieldGenerator {
     }
 
     public static boolean isInStructureFootprint(int x, int z) {
-        // Windmill bounding box
         if (x >= WINDMILL_X - 6 && x <= WINDMILL_X + 6 && z >= WINDMILL_Z - 6 && z <= WINDMILL_Z + 6) {
             return true;
         }
-        // Farmer's House bounding box
         if (x >= HOUSE_X - 6 && x <= HOUSE_X + 6 && z >= HOUSE_Z - 6 && z <= HOUSE_Z + 6) {
             return true;
         }
@@ -140,42 +185,78 @@ public class UnharvestFieldGenerator {
             return;
         }
 
-        generateSpawnField(server, serverLevel, markerFile);
+        if (!isGenerating) {
+            startGeneration(server, serverLevel, markerFile, minecraft.player);
+        }
     }
 
-    private static void generateSpawnField(MinecraftServer server, ServerLevel serverLevel, Path markerFile) {
-        Constants.LOG.info("[Unharvest] Generating expanded organic wheat field and structures at spawn...");
-
-        int groundY = getGroundY(serverLevel);
-        int cropY = groundY + 1;
-
-        // 1. Set World Spawn at center
-        BlockPos spawnPos = new BlockPos(0, cropY, 0);
-        serverLevel.setRespawnData(LevelData.RespawnData.of(Level.OVERWORLD, spawnPos, 0.0f, 0.0f));
-
-        LocalPlayer player = Minecraft.getInstance().player;
-        if (player != null) {
-            player.teleportTo(0.5, cropY, 0.5);
+    /**
+     * Initializes non-blocking chunked generation:
+     * Teleports the player, constructs the structures, and enqueues chunks
+     * sorted outward from spawn to create a blooming wavefront without lag spikes.
+     */
+    public static synchronized void startGeneration(MinecraftServer server, ServerLevel serverLevel, Path markerFile, Player player) {
+        if (isGenerating) {
+            if (player != null) {
+                player.sendSystemMessage(Component.literal(String.format(
+                        Locale.US,
+                        "§5§l[Unharvest] §eGeneration already in progress: §6%d%%", getGenerationPercent()
+                )));
+            }
+            return;
         }
 
-        // 2. Clear trial chambers or debris above the arena
+        Constants.LOG.info("[Unharvest] Starting progressive chunked field generation...");
+        isGenerating = true;
+        totalPlacedCrops = 0;
+        processedChunksCount = 0;
+        currentMarkerFile = markerFile;
+
+        currentGroundY = getGroundY(serverLevel);
+        currentCropY = currentGroundY + 1;
+
+        // 1. Set spawn and teleport player
+        BlockPos spawnPos = new BlockPos(0, currentCropY, 0);
+        serverLevel.setRespawnData(LevelData.RespawnData.of(Level.OVERWORLD, spawnPos, 0.0f, 0.0f));
+
+        LocalPlayer localPlayer = Minecraft.getInstance().player;
+        if (localPlayer != null) {
+            localPlayer.teleportTo(0.5, currentCropY, 0.5);
+        }
+
+        if (player != null) {
+            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting chunked field generation... populating field and constructing structures."));
+            player.sendOverlayMessage(Component.literal("§5§l[Unharvest] §ePopulating plague field... §f0%"));
+        }
+
+        // 2. Generate Atmospheric Structures immediately
+        generateWindmill(serverLevel, currentGroundY);
+        generateFarmerHouse(serverLevel, currentGroundY);
+
+        // 3. Enqueue and sort all chunks spanning the field radius
         int maxScan = BASE_RADIUS + 18;
-        for (int x = -maxScan; x <= maxScan; x++) {
-            for (int z = -maxScan; z <= maxScan; z++) {
-                for (int clearY = cropY + 1; clearY <= cropY + 45; clearY++) {
-                    BlockPos abovePos = new BlockPos(x, clearY, z);
-                    if (!serverLevel.getBlockState(abovePos).isAir()) {
-                        serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
-                    }
-                }
+        int minChunk = (-maxScan) >> 4; // -5
+        int maxChunk = (maxScan) >> 4;  // +5
+
+        pendingChunks.clear();
+        for (int cx = minChunk; cx <= maxChunk; cx++) {
+            for (int cz = minChunk; cz <= maxChunk; cz++) {
+                pendingChunks.add(new ChunkCoord(cx, cz));
             }
         }
 
-        // 3. Generate Atmospheric Structures
-        generateWindmill(serverLevel, groundY);
-        generateFarmerHouse(serverLevel, groundY);
+        // Sort by distance from center so field blooms outward smoothly
+        pendingChunks.sort(Comparator.comparingInt(c -> c.distSq));
+        totalChunksToProcess = pendingChunks.size();
+    }
 
-        // 4. Procedural Organic Non-Squared Shape & Wheat Placement
+    /**
+     * Ticks chunked field population across game ticks to eliminate lag spikes.
+     * Updates real-time progress text on the action bar.
+     */
+    public static synchronized void tickGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
+        if (!isGenerating) return;
+
         BlockState moistFarmland = Blocks.FARMLAND.defaultBlockState().setValue(FarmlandBlock.MOISTURE, 7);
         BlockState matureWheat = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
         BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
@@ -183,78 +264,115 @@ public class UnharvestFieldGenerator {
         BlockState fenceState = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState lanternState = Blocks.LANTERN.defaultBlockState();
 
-        int totalPlacedCrops = 0;
+        int maxScan = BASE_RADIUS + 18;
+        int chunksThisTick = Math.min(CHUNKS_PER_TICK, pendingChunks.size());
 
-        for (int x = -maxScan; x <= maxScan; x++) {
-            for (int z = -maxScan; z <= maxScan; z++) {
-                double dist = Math.sqrt(x * x + z * z);
-                double angle = Math.atan2(z, x);
+        for (int i = 0; i < chunksThisTick; i++) {
+            ChunkCoord coord = pendingChunks.remove(0);
+            processedChunksCount++;
 
-                // Multi-harmonic undulating boundary formula
-                double shapeRadius = BASE_RADIUS * (1.0
-                        + 0.25 * Math.sin(3.0 * angle + 0.8)
-                        + 0.16 * Math.cos(5.0 * angle - 1.2)
-                        + 0.12 * Math.sin(2.0 * angle + 2.1)
-                        + 0.08 * Math.cos(7.0 * angle)
-                ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
+            int startX = coord.x * 16;
+            int startZ = coord.z * 16;
 
-                BlockPos floorPos = new BlockPos(x, groundY, z);
-                BlockPos cropPos = new BlockPos(x, cropY, z);
+            for (int x = startX; x < startX + 16; x++) {
+                if (x < -maxScan || x > maxScan) continue;
+                for (int z = startZ; z < startZ + 16; z++) {
+                    if (z < -maxScan || z > maxScan) continue;
 
-                if (dist <= shapeRadius) {
-                    if (isInStructureFootprint(x, z)) {
-                        // Handled by structure generator
-                        continue;
+                    // Clear any debris or trial chambers above the crop level
+                    for (int clearY = currentCropY + 1; clearY <= currentCropY + 35; clearY++) {
+                        BlockPos abovePos = new BlockPos(x, clearY, z);
+                        if (!serverLevel.getBlockState(abovePos).isAir()) {
+                            serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                        }
                     }
 
-                    if (isPath(x, z)) {
-                        // Organic dirt walking path
-                        serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
-                        serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
-                        continue;
-                    }
+                    double dist = Math.sqrt(x * x + z * z);
+                    double angle = Math.atan2(z, x);
 
-                    // Inside the wheat field: place farmland and mature wheat
-                    serverLevel.setBlock(floorPos, moistFarmland, 2);
-                    serverLevel.setBlock(cropPos, matureWheat, 2);
-                    totalPlacedCrops++;
-                } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
-                    // Irregular coarse dirt perimeter border
-                    serverLevel.setBlock(floorPos, coarseDirt, 2);
-                    if (!serverLevel.getBlockState(cropPos).isAir()) {
-                        serverLevel.removeBlock(cropPos, false);
-                    }
+                    double shapeRadius = BASE_RADIUS * (1.0
+                            + 0.25 * Math.sin(3.0 * angle + 0.8)
+                            + 0.16 * Math.cos(5.0 * angle - 1.2)
+                            + 0.12 * Math.sin(2.0 * angle + 2.1)
+                            + 0.08 * Math.cos(7.0 * angle)
+                    ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
 
-                    // Rustic perimeter fence post with lantern
-                    if (Math.abs(x * 31 + z * 17) % 12 == 0) {
-                        serverLevel.setBlock(cropPos, fenceState, 2);
-                        serverLevel.setBlock(cropPos.above(), lanternState, 2);
+                    BlockPos floorPos = new BlockPos(x, currentGroundY, z);
+                    BlockPos cropPos = new BlockPos(x, currentCropY, z);
+
+                    if (dist <= shapeRadius) {
+                        if (isInStructureFootprint(x, z)) {
+                            continue;
+                        }
+
+                        if (isPath(x, z)) {
+                            serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
+                            serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
+                            continue;
+                        }
+
+                        serverLevel.setBlock(floorPos, moistFarmland, 2);
+                        serverLevel.setBlock(cropPos, matureWheat, 2);
+                        totalPlacedCrops++;
+                    } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
+                        serverLevel.setBlock(floorPos, coarseDirt, 2);
+                        if (!serverLevel.getBlockState(cropPos).isAir()) {
+                            serverLevel.removeBlock(cropPos, false);
+                        }
+
+                        if (Math.abs(x * 31 + z * 17) % 12 == 0) {
+                            serverLevel.setBlock(cropPos, fenceState, 2);
+                            serverLevel.setBlock(cropPos.above(), lanternState, 2);
+                        }
                     }
                 }
             }
         }
 
-        // 5. Update state and write marker
-        UnharvestState state = UnharvestState.getInstance();
-        state.setFieldTotalCrops(totalPlacedCrops);
-
-        try {
-            JsonObject json = new JsonObject();
-            json.addProperty("centerX", 0);
-            json.addProperty("centerY", cropY);
-            json.addProperty("centerZ", 0);
-            json.addProperty("totalCrops", totalPlacedCrops);
-            Files.writeString(markerFile, json.toString());
-        } catch (Exception e) {
-            Constants.LOG.error("[Unharvest] Failed to save field marker", e);
+        int percent = getGenerationPercent();
+        if (player != null) {
+            player.sendOverlayMessage(Component.literal(String.format(
+                    Locale.US,
+                    "§5§l[Unharvest] §ePopulating plague field... §f%d%% §7(%,d crops placed)",
+                    percent, totalPlacedCrops
+            )));
         }
 
-        Constants.LOG.info("[Unharvest] Successfully generated field with {} crops at spawn!", totalPlacedCrops);
+        // Completion check
+        if (pendingChunks.isEmpty()) {
+            isGenerating = false;
+            finishGeneration(server, serverLevel, player);
+        }
+    }
+
+    private static void finishGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
+        UnharvestState state = UnharvestState.getInstance();
+        state.setFieldStats(totalPlacedCrops, 0);
+
+        if (currentMarkerFile != null) {
+            try {
+                JsonObject json = new JsonObject();
+                json.addProperty("centerX", 0);
+                json.addProperty("centerY", currentCropY);
+                json.addProperty("centerZ", 0);
+                json.addProperty("totalCrops", totalPlacedCrops);
+                Files.writeString(currentMarkerFile, json.toString());
+            } catch (Exception e) {
+                Constants.LOG.error("[Unharvest] Failed to save field marker", e);
+            }
+        }
+
+        Constants.LOG.info("[Unharvest] Finished chunked field generation with {} crops!", totalPlacedCrops);
 
         if (player != null) {
             player.sendSystemMessage(Component.literal(String.format(
-                    java.util.Locale.US,
-                    "§5§l[Unharvest] §aGenerated plague field with §e%,d§a wheat crops and structures! (§ePeaceful difficulty§a)",
+                    Locale.US,
+                    "§5§l[Unharvest] §aPlague field population complete! §e%,d§a wheat crops placed. (§ePeaceful difficulty§a)",
+                    totalPlacedCrops
+            )));
+            player.sendOverlayMessage(Component.literal(String.format(
+                    Locale.US,
+                    "§5§l[Unharvest] §aField Ready! §f%,d wheat crops",
                     totalPlacedCrops
             )));
         }
@@ -418,7 +536,6 @@ public class UnharvestFieldGenerator {
         BlockState sprucePlanks = Blocks.SPRUCE_PLANKS.defaultBlockState();
         BlockState spruceLog = Blocks.SPRUCE_LOG.defaultBlockState();
         BlockState darkOakPlanks = Blocks.DARK_OAK_PLANKS.defaultBlockState();
-        BlockState darkOakSlab = Blocks.DARK_OAK_SLAB.defaultBlockState();
         BlockState spruceFence = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState spruceSlab = Blocks.SPRUCE_SLAB.defaultBlockState();
         BlockState glassPane = Blocks.GLASS_PANE.defaultBlockState();
@@ -600,16 +717,17 @@ public class UnharvestFieldGenerator {
         return new RescanResult(total, witheredCount, remainingCropCount);
     }
 
-    public static void forceRegenerateField(MinecraftServer server, ServerLevel serverLevel) {
+    public static void forceRegenerateField(MinecraftServer server, ServerLevel serverLevel, Player player) {
         Path saveDir = server.getWorldPath(LevelResource.ROOT);
         Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
         try {
             Files.deleteIfExists(markerFile);
         } catch (Exception ignored) {}
-        generateSpawnField(server, serverLevel, markerFile);
+        stopGeneration();
+        startGeneration(server, serverLevel, markerFile, player);
     }
 
     public static void clearCache() {
-        // Cache clear hook for world reset
+        stopGeneration();
     }
 }

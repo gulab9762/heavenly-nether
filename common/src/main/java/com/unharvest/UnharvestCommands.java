@@ -48,6 +48,15 @@ public class UnharvestCommands {
             return 0;
         }
 
+        if (UnharvestFieldGenerator.isGenerating()) {
+            player.sendSystemMessage(Component.literal(String.format(
+                    java.util.Locale.US,
+                    "§5§l[Unharvest] §cField generation is in progress (%d%%). Please wait for completion before rescanning.",
+                    UnharvestFieldGenerator.getGenerationPercent()
+            )));
+            return 0;
+        }
+
         UnharvestFieldGenerator.RescanResult result = UnharvestFieldGenerator.rescanField(player.level());
         UnharvestState state = UnharvestState.getInstance();
 
@@ -68,15 +77,24 @@ public class UnharvestCommands {
             player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
             return 0;
         }
+
+        if (UnharvestFieldGenerator.isGenerating()) {
+            if (player != null) {
+                player.sendSystemMessage(Component.literal(String.format(
+                        java.util.Locale.US,
+                        "§5§l[Unharvest] §cField generation already in progress: §e%d%%",
+                        UnharvestFieldGenerator.getGenerationPercent()
+                )));
+            }
+            return 0;
+        }
+
         net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
         net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
         if (server != null) {
             net.minecraft.server.level.ServerLevel level = server.overworld();
             if (level != null) {
-                UnharvestFieldGenerator.forceRegenerateField(server, level);
-                if (player != null) {
-                    player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aField regenerated and cleared of all structure obstructions!"));
-                }
+                UnharvestFieldGenerator.forceRegenerateField(server, level, player);
                 return 1;
             }
         }

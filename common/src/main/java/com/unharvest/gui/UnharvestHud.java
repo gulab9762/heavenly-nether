@@ -1,5 +1,6 @@
 package com.unharvest.gui;
 
+import com.unharvest.UnharvestFieldGenerator;
 import com.unharvest.UnharvestManager;
 import com.unharvest.UnharvestState;
 import net.minecraft.client.Minecraft;
@@ -35,7 +36,8 @@ public class UnharvestHud {
         int width = 210;
 
         boolean upgradeAvailable = isAnyUpgradeAvailable(state);
-        int height = upgradeAvailable ? 54 : 42;
+        boolean isGenerating = UnharvestFieldGenerator.isGenerating();
+        int height = (upgradeAvailable || isGenerating) ? 54 : 42;
 
         // Background box: dark semi-transparent fill with purple border
         extractor.fill(x - 4, y - 4, x + width + 4, y + height + 4, 0x90000000);
@@ -54,8 +56,12 @@ public class UnharvestHud {
         extractor.text(font, Component.literal(String.format(java.util.Locale.US, "§a🌿 Cleared: §f%.1f%% §7(%,d/%,d)",
                 state.getClearedPercentage(), state.getTotalWithered(), state.getFieldTotalCrops())), x, y + 25, 0xFFFFFFFF);
 
-        // Upgrade Notification
-        if (upgradeAvailable) {
+        // Upgrade Notification or Field Generation Status
+        if (isGenerating) {
+            long pulse = (System.currentTimeMillis() / 350) % 2;
+            String icon = (pulse == 0) ? "§e⏳" : "§6⏳";
+            extractor.text(font, Component.literal(icon + " §ePopulating Field: §f" + UnharvestFieldGenerator.getGenerationPercent() + "%"), x, y + 38, 0xFFFFFFFF);
+        } else if (upgradeAvailable) {
             long pulse = (System.currentTimeMillis() / 400) % 2;
             String icon = (pulse == 0) ? "§e▲" : "§6▲";
             extractor.text(font, Component.literal(icon + " §eUpgrade Ready! §6[Press U]"), x, y + 38, 0xFFFFFFFF);

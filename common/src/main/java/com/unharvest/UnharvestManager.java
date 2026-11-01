@@ -170,6 +170,7 @@ public class UnharvestManager {
         PENDING_POSITIONS.clear();
         ACTIVE_SWARMS.clear();
         swarmCooldownTicks = 0;
+        UnharvestFieldGenerator.clearCache();
     }
 
     /**
@@ -400,6 +401,17 @@ public class UnharvestManager {
             recentResetCooldown--;
             if (recentResetCooldown == 0) {
                 recentEarnedEssence = 0;
+            }
+        }
+
+        // 0. Progressive chunked field generation (populating world across ticks without lag)
+        if (UnharvestFieldGenerator.isGenerating()) {
+            MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+            if (server != null) {
+                ServerLevel serverLevel = server.overworld();
+                if (serverLevel != null) {
+                    UnharvestFieldGenerator.tickGeneration(server, serverLevel, player);
+                }
             }
         }
 
