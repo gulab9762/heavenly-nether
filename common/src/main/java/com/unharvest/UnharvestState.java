@@ -388,10 +388,10 @@ public class UnharvestState {
     }
 
     public synchronized int getSwarmDevourRate() {
-        if (isNodeUnlocked("swarm_master")) return 22;
-        if (isNodeUnlocked("swarm_speed_2")) return 14;
-        if (isNodeUnlocked("swarm_speed_1")) return 8;
-        return 5;
+        if (isNodeUnlocked("swarm_master")) return 140;
+        if (isNodeUnlocked("swarm_speed_2")) return 90;
+        if (isNodeUnlocked("swarm_speed_1")) return 60;
+        return 35;
     }
 
     public synchronized long getElapsedMillis() {

@@ -774,36 +774,55 @@ public class UnharvestManager {
             // 2. Devour crops every 2 ticks (2x faster frequency!)
             if (swarm.ticksRemaining % 2 == 0) {
                 int withered = 0;
-                int maxToWither = swarm.devourRate;
+
+                int wheatY = UnharvestFieldGenerator.getWheatY(level);
+                int baseCheckY = (Math.abs(swarm.center.getY() - wheatY) <= 3) ? wheatY : swarm.center.getY();
+                int r2 = swarm.radius * swarm.radius;
 
                 List<BlockPos> localCrops = new ArrayList<>();
                 for (int dx = -swarm.radius; dx <= swarm.radius; dx++) {
                     for (int dz = -swarm.radius; dz <= swarm.radius; dz++) {
-                        if (dx * dx + dz * dz <= swarm.radius * swarm.radius) {
-                            BlockPos check = new BlockPos(swarm.center.getX() + dx, swarm.center.getY(), swarm.center.getZ() + dz);
-                            if (isCrop(level.getBlockState(check))) {
-                                localCrops.add(check);
+                        if (dx * dx + dz * dz <= r2) {
+                            for (int dy = -1; dy <= 2; dy++) {
+                                BlockPos check = new BlockPos(swarm.center.getX() + dx, baseCheckY + dy, swarm.center.getZ() + dz);
+                                if (isCrop(level.getBlockState(check))) {
+                                    localCrops.add(check);
+                                    break;
+                                }
                             }
                         }
                     }
                 }
 
-                Collections.shuffle(localCrops);
-                for (BlockPos target : localCrops) {
-                    if (witherCrop(level, target)) {
-                        withered++;
-                        if (withered >= maxToWither) break;
+                if (!localCrops.isEmpty()) {
+                    // Sort closest to center first for a clean, expanding ripple of decay (no Swiss cheese patches!)
+                    localCrops.sort(Comparator.comparingDouble(p -> p.distSqr(swarm.center)));
+
+                    int intervalsLeft = Math.max(1, swarm.ticksRemaining / 2);
+                    int neededToClear = (int) Math.ceil((double) localCrops.size() / intervalsLeft);
+                    int maxToWither = Math.max(swarm.devourRate, neededToClear);
+
+                    // Final cleanup guarantee: if swarm is in its last ticks, devour ALL remaining crops in radius
+                    if (swarm.ticksRemaining <= 4) {
+                        maxToWither = localCrops.size();
                     }
-                }
 
-                if (withered > 0) {
-                    registerEssenceEarned(player, withered);
+                    for (BlockPos target : localCrops) {
+                        if (witherCrop(level, target)) {
+                            withered++;
+                            if (withered >= maxToWither) break;
+                        }
+                    }
 
-                    level.playLocalSound(
-                            swarm.center.getX() + 0.5, swarm.center.getY() + 0.5, swarm.center.getZ() + 0.5,
-                            SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
-                            0.5f, 1.4f, false
-                    );
+                    if (withered > 0) {
+                        registerEssenceEarned(player, withered);
+
+                        level.playLocalSound(
+                                swarm.center.getX() + 0.5, swarm.center.getY() + 0.5, swarm.center.getZ() + 0.5,
+                                SoundEvents.CROP_BREAK, SoundSource.BLOCKS,
+                                0.5f, 1.4f, false
+                        );
+                    }
                 }
             }
 
