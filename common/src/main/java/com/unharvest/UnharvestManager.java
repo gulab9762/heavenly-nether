@@ -12,12 +12,16 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -26,6 +30,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -85,6 +90,24 @@ public class UnharvestManager {
     }
 
     private static final List<ActiveSwarm> ACTIVE_SWARMS = new ArrayList<>();
+
+    // Throwable Swarm Projectile tracking
+    public static class SwarmProjectile {
+        public final UUID entityUuid;
+        public final int radius;
+        public final int devourRate;
+        public Vec3 lastPos;
+        public int ticksAlive = 0;
+
+        public SwarmProjectile(UUID entityUuid, int radius, int devourRate, Vec3 initialPos) {
+            this.entityUuid = entityUuid;
+            this.radius = radius;
+            this.devourRate = devourRate;
+            this.lastPos = initialPos;
+        }
+    }
+
+    private static final List<SwarmProjectile> PENDING_PROJECTILES = new ArrayList<>();
     private static int swarmCooldownTicks = 0;
     private static boolean wasInitializedThisSession = false;
     private static boolean lastUpgradeAvailable = false;
@@ -183,6 +206,9 @@ public class UnharvestManager {
         WITHER_QUEUE.clear();
         PENDING_POSITIONS.clear();
         ACTIVE_SWARMS.clear();
+        synchronized (PENDING_PROJECTILES) {
+            PENDING_PROJECTILES.clear();
+        }
         swarmCooldownTicks = 0;
         wasInitializedThisSession = false;
         lastUpgradeAvailable = false;
@@ -353,36 +379,145 @@ public class UnharvestManager {
             return false;
         }
         if (swarmCooldownTicks > 0) {
-            player.sendOverlayMessage(Component.literal(String.format("§c[Locust Swarm] On cooldown! (%.1fs)", swarmCooldownTicks / 20.0f)));
+            player.sendOverlayMessage(Component.literal(String.format(Locale.US, "§c[Locust Swarm] On cooldown! (%.1fs)", swarmCooldownTicks / 20.0f)));
             return false;
-        }
-
-        HitResult hit = player.pick(24.0, 0.0f, false);
-        BlockPos target;
-        if (hit != null && hit.getType() == HitResult.Type.BLOCK) {
-            target = ((BlockHitResult) hit).getBlockPos();
-            if (!isCrop(level.getBlockState(target)) && isCrop(level.getBlockState(target.above()))) {
-                target = target.above();
-            }
-        } else {
-            BlockPos forward = player.blockPosition().relative(player.getDirection(), 6);
-            target = new BlockPos(forward.getX(), UnharvestFieldGenerator.getWheatY(level), forward.getZ());
         }
 
         int radius = state.getSwarmRadius();
         int devourRate = state.getSwarmDevourRate();
-        ACTIVE_SWARMS.add(new ActiveSwarm(target.immutable(), radius, devourRate, 140)); // 7 seconds
         swarmCooldownTicks = state.getSwarmCooldownTicks();
 
-        // Sound effects
+        // Swing player hand
+        player.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
+
+        // Sound effect for throwing
+        level.playLocalSound(
+                player.getX(), player.getY(), player.getZ(),
+                SoundEvents.SNOWBALL_THROW, SoundSource.PLAYERS,
+                1.0f, 0.8f + (level.getRandom().nextFloat() * 0.4f), false
+        );
+
+        // Spawn throwable snowball projectile on server
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server != null) {
+            server.execute(() -> {
+                ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
+                if (serverPlayer != null) {
+                    ServerLevel serverLevel = (ServerLevel) serverPlayer.level();
+                    Snowball snowball = new Snowball(serverLevel, serverPlayer, new ItemStack(Items.SNOWBALL));
+                    snowball.shootFromRotation(serverPlayer, serverPlayer.getXRot(), serverPlayer.getYRot(), 0.0f, 1.6f, 1.0f);
+                    serverLevel.addFreshEntity(snowball);
+                    synchronized (PENDING_PROJECTILES) {
+                        PENDING_PROJECTILES.add(new SwarmProjectile(snowball.getUUID(), radius, devourRate, snowball.position()));
+                    }
+                }
+            });
+        } else {
+            // Fallback for direct activation if integrated server is absent
+            HitResult hit = player.pick(24.0, 0.0f, false);
+            BlockPos target;
+            if (hit != null && hit.getType() == HitResult.Type.BLOCK) {
+                target = ((BlockHitResult) hit).getBlockPos();
+                if (!isCrop(level.getBlockState(target)) && isCrop(level.getBlockState(target.above()))) {
+                    target = target.above();
+                }
+            } else {
+                BlockPos forward = player.blockPosition().relative(player.getDirection(), 8);
+                target = new BlockPos(forward.getX(), UnharvestFieldGenerator.getWheatY(level), forward.getZ());
+            }
+            activateSwarmAt(level, target, radius, devourRate, player);
+        }
+
+        player.sendOverlayMessage(Component.literal(String.format(Locale.US, "§2§l🦗 Locust Swarm Thrown! §aDevours %d-block radius upon landing!", radius)));
+        return true;
+    }
+
+    public static void activateSwarmAt(Level level, BlockPos target, int radius, int devourRate, Player player) {
+        if (level == null || target == null) return;
+
+        ACTIVE_SWARMS.add(new ActiveSwarm(target.immutable(), radius, devourRate, 140)); // 7 seconds
+
+        // Swarm eruption sounds
         level.playLocalSound(
                 target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
                 SoundEvents.BEE_LOOP, SoundSource.PLAYERS,
-                1.2f, 0.6f, false
+                1.5f, 0.6f, false
+        );
+        level.playLocalSound(
+                target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
+                SoundEvents.WITCH_THROW, SoundSource.PLAYERS,
+                1.3f, 0.5f, false
         );
 
-        player.sendOverlayMessage(Component.literal(String.format("§2§l🦗 Locust Swarm Unleashed! §aDevouring %d-block zone for 7s!", radius)));
-        return true;
+        // Burst of dark green & squid ink particles upon landing
+        RandomSource random = level.getRandom();
+        for (int i = 0; i < 35; i++) {
+            double angle = random.nextDouble() * Math.PI * 2;
+            double speed = 0.1 + random.nextDouble() * 0.25;
+            double vx = Math.cos(angle) * speed;
+            double vz = Math.sin(angle) * speed;
+            double vy = 0.1 + random.nextDouble() * 0.2;
+            level.addParticle(ParticleTypes.SQUID_INK, target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5, vx, vy, vz);
+            level.addParticle(ParticleTypes.SMOKE, target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5, vx * 0.8, vy * 0.8, vz * 0.8);
+            level.addParticle(
+                    net.minecraft.core.particles.ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF40DD40),
+                    target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5,
+                    vx * 0.5, vy, vz * 0.5
+            );
+        }
+
+        if (player != null) {
+            player.sendOverlayMessage(Component.literal(String.format(Locale.US,
+                    "§2§l🦗 Locust Swarm Landed! §aDevouring %d-block radius for 7s!", radius)));
+        }
+    }
+
+    private static void tickSwarmProjectiles(Level level, Player player) {
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server == null) return;
+        ServerLevel serverLevel = server.overworld();
+        if (serverLevel == null) return;
+
+        synchronized (PENDING_PROJECTILES) {
+            Iterator<SwarmProjectile> it = PENDING_PROJECTILES.iterator();
+            while (it.hasNext()) {
+                SwarmProjectile proj = it.next();
+                proj.ticksAlive++;
+
+                Entity entity = serverLevel.getEntity(proj.entityUuid);
+                if (entity != null && entity.isAlive() && !entity.isRemoved()) {
+                    proj.lastPos = entity.position();
+
+                    // Client-side particle trail while in flight
+                    double px = proj.lastPos.x;
+                    double py = proj.lastPos.y;
+                    double pz = proj.lastPos.z;
+                    level.addParticle(ParticleTypes.SQUID_INK, px, py, pz, 0, 0.02, 0);
+                    level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.02, 0);
+                    level.addParticle(
+                            net.minecraft.core.particles.ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF30D030),
+                            px, py, pz, 0, 0.03, 0
+                    );
+
+                    // Safety timeout after 10 seconds (200 ticks)
+                    if (proj.ticksAlive > 200) {
+                        it.remove();
+                        BlockPos target = BlockPos.containing(proj.lastPos);
+                        activateSwarmAt(level, target, proj.radius, proj.devourRate, player);
+                    }
+                } else {
+                    // Snowball impacted block/entity and was discarded by vanilla!
+                    it.remove();
+                    Vec3 impactPos = (proj.lastPos != null) ? proj.lastPos : ((entity != null) ? entity.position() : player.position());
+                    BlockPos target = BlockPos.containing(impactPos);
+                    int wheatY = UnharvestFieldGenerator.getWheatY(level);
+                    if (Math.abs(target.getY() - wheatY) <= 3) {
+                        target = new BlockPos(target.getX(), wheatY, target.getZ());
+                    }
+                    activateSwarmAt(level, target, proj.radius, proj.devourRate, player);
+                }
+            }
+        }
     }
 
     /**
@@ -431,6 +566,11 @@ public class UnharvestManager {
         // 1. Process delayed withering spread queue (for beautiful visual cascading)
         if (!WITHER_QUEUE.isEmpty()) {
             tickWitherQueue(level, player);
+        }
+
+        // 1.5. Process throwable swarm projectiles
+        if (!PENDING_PROJECTILES.isEmpty()) {
+            tickSwarmProjectiles(level, player);
         }
 
         // 2. Process active placed Locust Swarms
@@ -516,24 +656,24 @@ public class UnharvestManager {
             ActiveSwarm swarm = it.next();
             swarm.ticksRemaining--;
 
-            // 1. Swarm particle vortex
-            for (int i = 0; i < 7; i++) {
+            // 1. Swarm particle vortex (increased particle density for larger radius)
+            for (int i = 0; i < 18; i++) {
                 double angle = random.nextDouble() * Math.PI * 2;
                 double r = random.nextDouble() * swarm.radius;
                 double px = swarm.center.getX() + 0.5 + Math.cos(angle) * r;
-                double py = swarm.center.getY() + 0.2 + random.nextDouble() * 2.0;
+                double py = swarm.center.getY() + 0.2 + random.nextDouble() * 2.5;
                 double pz = swarm.center.getZ() + 0.5 + Math.sin(angle) * r;
 
                 // Dark swirling swarm particles
-                level.addParticle(ParticleTypes.SQUID_INK, px, py, pz, -Math.sin(angle) * 0.1, 0.05, Math.cos(angle) * 0.1);
-                level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.03, 0);
-                if (random.nextFloat() < 0.35f) {
+                level.addParticle(ParticleTypes.SQUID_INK, px, py, pz, -Math.sin(angle) * 0.15, 0.06, Math.cos(angle) * 0.15);
+                level.addParticle(ParticleTypes.SMOKE, px, py, pz, 0, 0.04, 0);
+                if (random.nextFloat() < 0.45f) {
                     level.addParticle(net.minecraft.core.particles.ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF40B040), px, py, pz, 0, 0.05, 0);
                 }
             }
 
-            // 2. Devour crops every 3 ticks
-            if (swarm.ticksRemaining % 3 == 0) {
+            // 2. Devour crops every 2 ticks (2x faster frequency!)
+            if (swarm.ticksRemaining % 2 == 0) {
                 int withered = 0;
                 int maxToWither = swarm.devourRate;
 

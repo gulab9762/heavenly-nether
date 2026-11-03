@@ -138,7 +138,7 @@ public class UnharvestState {
                 "🍂", 15000, NodeCategory.SPORES, -6.6, 0.0, false, "spores_pandemic"));
 
         // --- 4. LOCUST SWARM TREE (Branching Right - Dark Moss) ---
-        registerNode(new UpgradeNode("swarm_root", "Locust Brood", "Unlocks placeable Locust Swarm [R]! (20s cooldown, devours field for 7s)",
+        registerNode(new UpgradeNode("swarm_root", "Locust Brood", "Unlocks throwable Locust Swarm [R]! (20s cooldown, devours field for 7s)",
                 "🦗", 450, NodeCategory.SWARM, 1.8, 0.0, false, "skull"));
 
         // Upper Track (Cooldown)
@@ -156,13 +156,13 @@ public class UnharvestState {
                 "🦗", 4500, NodeCategory.SWARM, 4.8, 0.0, false, "swarm_speed_1"));
 
         // Lower Track (Swarm Area)
-        registerNode(new UpgradeNode("swarm_area_1", "Expanded Swarm I", "Increases Swarm devour radius to 7 blocks.",
+        registerNode(new UpgradeNode("swarm_area_1", "Expanded Swarm I", "Increases Swarm devour radius to 14 blocks.",
                 "+", 1800, NodeCategory.SWARM, 3.0, 0.8, false, "swarm_root"));
-        registerNode(new UpgradeNode("swarm_area_2", "Plague Cloud II", "Increases Swarm devour radius to 10 blocks.",
+        registerNode(new UpgradeNode("swarm_area_2", "Plague Cloud II", "Increases Swarm devour radius to 20 blocks.",
                 "+", 5400, NodeCategory.SWARM, 4.2, 0.8, false, "swarm_area_1"));
 
         // Apex Swarm
-        registerNode(new UpgradeNode("swarm_master", "Pestilence Horde (Apex)", "Summons a devastating rat & locust horde that consumes the field.",
+        registerNode(new UpgradeNode("swarm_master", "Pestilence Horde (Apex)", "Summons a devastating rat & locust horde in a 24-block radius.",
                 "🐀", 18000, NodeCategory.SWARM, 6.6, 0.0, false, "swarm_cd_3", "swarm_speed_2", "swarm_area_2"));
     }
 
@@ -381,17 +381,17 @@ public class UnharvestState {
     }
 
     public synchronized int getSwarmRadius() {
-        if (isNodeUnlocked("swarm_master")) return 12;
-        if (isNodeUnlocked("swarm_area_2")) return 10;
-        if (isNodeUnlocked("swarm_area_1")) return 7;
-        return 5;
+        if (isNodeUnlocked("swarm_master")) return 24;
+        if (isNodeUnlocked("swarm_area_2")) return 20;
+        if (isNodeUnlocked("swarm_area_1")) return 14;
+        return 10;
     }
 
     public synchronized int getSwarmDevourRate() {
-        if (isNodeUnlocked("swarm_master")) return 8;
-        if (isNodeUnlocked("swarm_speed_2")) return 5;
-        if (isNodeUnlocked("swarm_speed_1")) return 3;
-        return 2;
+        if (isNodeUnlocked("swarm_master")) return 22;
+        if (isNodeUnlocked("swarm_speed_2")) return 14;
+        if (isNodeUnlocked("swarm_speed_1")) return 8;
+        return 5;
     }
 
     public synchronized long getElapsedMillis() {
