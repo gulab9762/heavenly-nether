@@ -162,11 +162,10 @@ public class UnharvestManager {
             return true;
         }
 
-        // 3. Spawn check: Check if wheat/wither rose is present near spawn point
-        BlockPos spawnPos = level.getRespawnData() != null ? level.getRespawnData().pos() : new BlockPos(0, 64, 0);
-        int checkY = spawnPos.getY();
-        for (int dy = -6; dy <= 6; dy++) {
-            BlockState checkState = level.getBlockState(spawnPos.atY(checkY + dy));
+        // 3. Flat world check: Check if wheat/wither rose is present at spawn
+        if (server.getWorldData().isFlatWorld()) {
+            int checkY = UnharvestFieldGenerator.getWheatY(level);
+            BlockState checkState = level.getBlockState(new BlockPos(0, checkY, 0));
             if (checkState.is(Blocks.WHEAT) || checkState.is(Blocks.WITHER_ROSE)) {
                 cachedIsUnharvestWorld = true;
                 UnharvestState.getInstance().loadForWorld(saveDir);

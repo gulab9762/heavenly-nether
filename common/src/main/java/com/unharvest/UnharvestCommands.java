@@ -123,32 +123,6 @@ public class UnharvestCommands {
         return 0;
     }
 
-    public static int cleanupAirspace(Player player) {
-        if (player != null && !UnharvestManager.isUnharvestWorld(player.level())) {
-            player.sendSystemMessage(Component.literal("§5§l[Unharvest] §cThis world is not an Unharvest world!"));
-            return 0;
-        }
-
-        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
-        net.minecraft.server.MinecraftServer server = client.getSingleplayerServer();
-        if (server != null) {
-            net.minecraft.server.level.ServerLevel level = server.overworld();
-            if (level != null) {
-                UnharvestFieldGenerator.ensureFieldGenerated(level);
-                int count = UnharvestFieldGenerator.performLevel2Clearance(server, level);
-                if (player != null) {
-                    player.sendSystemMessage(Component.literal(String.format(
-                            java.util.Locale.US,
-                            "§5§l[Unharvest] §aLevel 2 Airspace Clearance complete! Swept and cleared §e%,d §afloating canopy and debris blocks.",
-                            count
-                    )));
-                }
-                return 1;
-            }
-        }
-        return 0;
-    }
-
     // =========================================================================
     // [DEBUG COMMAND - Comment out before final production release]
     // =========================================================================
