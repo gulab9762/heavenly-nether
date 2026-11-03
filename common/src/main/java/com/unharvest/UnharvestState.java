@@ -25,7 +25,7 @@ public class UnharvestState {
     // Currency and Progress
     private long essence = 0;
     private int totalWithered = 0;
-    private int fieldTotalCrops = 9761;
+    private int fieldTotalCrops = 18890;
     private long elapsedMillis = 0;
 
     // Graph Nodes
@@ -78,92 +78,92 @@ public class UnharvestState {
         // --- 2. SCYTHE TREE (Branching Upwards) ---
         // Tier 1
         registerNode(new UpgradeNode("scythe_speed_1", "Swift Sickle I", "Reduces scythe swing cooldown to 15 ticks.",
-                "⌛", 10, NodeCategory.SCYTHE, -0.9, -1.0, false, "skull"));
+                "⌛", 30, NodeCategory.SCYTHE, -0.9, -1.0, false, "skull"));
         registerNode(new UpgradeNode("scythe_radius_1", "Wide Sweep I", "Expands withering radius to a 3x3 AoE.",
-                "+", 25, NodeCategory.SCYTHE, 0.9, -1.0, false, "skull"));
+                "+", 75, NodeCategory.SCYTHE, 0.9, -1.0, false, "skull"));
 
         // Tier 2
         registerNode(new UpgradeNode("scythe_speed_2", "Swift Blade II", "Reduces scythe swing cooldown to 10 ticks.",
-                "⌛", 50, NodeCategory.SCYTHE, -1.5, -2.0, false, "scythe_speed_1"));
+                "⌛", 150, NodeCategory.SCYTHE, -1.5, -2.0, false, "scythe_speed_1"));
         registerNode(new UpgradeNode("scythe_yield_1", "Essence Siphon I", "Grants 2x Blight Essence per withered crop.",
-                "%", 80, NodeCategory.SCYTHE, 0.0, -2.0, false, "scythe_speed_1", "scythe_radius_1"));
+                "%", 240, NodeCategory.SCYTHE, 0.0, -2.0, false, "scythe_speed_1", "scythe_radius_1"));
         registerNode(new UpgradeNode("scythe_radius_2", "Wide Sweep II", "Expands withering radius to a 5x5 AoE.",
-                "+", 125, NodeCategory.SCYTHE, 1.5, -2.0, false, "scythe_radius_1"));
+                "+", 375, NodeCategory.SCYTHE, 1.5, -2.0, false, "scythe_radius_1"));
 
         // Tier 3
         registerNode(new UpgradeNode("scythe_speed_3", "Frenzy Strike III", "Reduces scythe swing cooldown to 6 ticks.",
-                "⌛", 200, NodeCategory.SCYTHE, -2.0, -3.0, false, "scythe_speed_2"));
+                "⌛", 600, NodeCategory.SCYTHE, -2.0, -3.0, false, "scythe_speed_2"));
         registerNode(new UpgradeNode("scythe_sweep_1", "Sickle Momentum I", "Increases harvest efficiency and swing speed.",
-                "🗡️", 150, NodeCategory.SCYTHE, -0.9, -3.0, false, "scythe_speed_2", "scythe_yield_1"));
+                "🗡️", 450, NodeCategory.SCYTHE, -0.9, -3.0, false, "scythe_speed_2", "scythe_yield_1"));
         registerNode(new UpgradeNode("scythe_yield_2", "Essence Siphon II", "Grants 3x Blight Essence per crop.",
-                "%", 350, NodeCategory.SCYTHE, 0.0, -3.0, false, "scythe_yield_1"));
+                "%", 1050, NodeCategory.SCYTHE, 0.0, -3.0, false, "scythe_yield_1"));
         registerNode(new UpgradeNode("scythe_sweep_2", "Sickle Momentum II", "Harvests crops in a broader arc.",
-                "🗡️", 300, NodeCategory.SCYTHE, 0.9, -3.0, false, "scythe_radius_2", "scythe_yield_1"));
+                "🗡️", 900, NodeCategory.SCYTHE, 0.9, -3.0, false, "scythe_radius_2", "scythe_yield_1"));
         registerNode(new UpgradeNode("scythe_radius_3", "Death Whirlwind III", "Expands withering radius to a 7x7 AoE.",
-                "+", 500, NodeCategory.SCYTHE, 2.0, -3.0, false, "scythe_radius_2"));
+                "+", 1500, NodeCategory.SCYTHE, 2.0, -3.0, false, "scythe_radius_2"));
 
         // Tier 4
         registerNode(new UpgradeNode("scythe_speed_4", "Flash Scythe IV", "Reduces scythe swing cooldown to 3 ticks.",
-                "⌛", 750, NodeCategory.SCYTHE, -1.4, -4.0, false, "scythe_speed_3", "scythe_sweep_1"));
+                "⌛", 2250, NodeCategory.SCYTHE, -1.4, -4.0, false, "scythe_speed_3", "scythe_sweep_1"));
         registerNode(new UpgradeNode("scythe_yield_3", "Essence Siphon III", "Grants 5x Blight Essence per crop.",
-                "%", 1200, NodeCategory.SCYTHE, 0.0, -4.0, false, "scythe_yield_2"));
+                "%", 3600, NodeCategory.SCYTHE, 0.0, -4.0, false, "scythe_yield_2"));
         registerNode(new UpgradeNode("scythe_radius_4", "Cataclysmic Sweep IV", "Expands withering radius to a 9x9 AoE.",
-                "+", 1800, NodeCategory.SCYTHE, 1.4, -4.0, false, "scythe_radius_3", "scythe_sweep_2"));
+                "+", 5400, NodeCategory.SCYTHE, 1.4, -4.0, false, "scythe_radius_3", "scythe_sweep_2"));
 
         // Apex Scythe
         registerNode(new UpgradeNode("scythe_mastery", "Grim Reaper Apex", "Mastery: 1-tick ultra speed & 10x Essence yield!",
-                "👑", 4000, NodeCategory.SCYTHE, 0.0, -5.2, false, "scythe_speed_4", "scythe_yield_3", "scythe_radius_4"));
+                "👑", 12000, NodeCategory.SCYTHE, 0.0, -5.2, false, "scythe_speed_4", "scythe_yield_3", "scythe_radius_4"));
 
         // --- 3. SPORES / CONTAGION TREE (Branching Left - Crimson) ---
         registerNode(new UpgradeNode("spores_root", "Fungal Genesis", "Unlocks Spores: 25% chance for withering to cascade to adjacent crops.",
-                "🍄", 100, NodeCategory.SPORES, -1.8, 0.0, false, "skull"));
+                "🍄", 300, NodeCategory.SPORES, -1.8, 0.0, false, "skull"));
 
         // Upper Spores Track (Chance)
         registerNode(new UpgradeNode("spores_chance_1", "Virulent Mold I", "Increases Contagion cascade chance to 45%.",
-                "🍄", 300, NodeCategory.SPORES, -3.0, -0.7, false, "spores_root"));
+                "🍄", 900, NodeCategory.SPORES, -3.0, -0.7, false, "spores_root"));
         registerNode(new UpgradeNode("spores_chance_2", "Black Mold II", "Increases Contagion cascade chance to 65%.",
-                "🍄", 900, NodeCategory.SPORES, -4.2, -0.7, false, "spores_chance_1"));
+                "🍄", 2700, NodeCategory.SPORES, -4.2, -0.7, false, "spores_chance_1"));
 
         // Lower Spores Track (Spread)
         registerNode(new UpgradeNode("spores_spread_1", "Spore Burst I", "Contagion cascade spreads 1 block further per wave.",
-                "🍄", 250, NodeCategory.SPORES, -3.0, 0.7, false, "spores_root"));
+                "🍄", 750, NodeCategory.SPORES, -3.0, 0.7, false, "spores_root"));
         registerNode(new UpgradeNode("spores_spread_2", "Airborne Rot II", "Contagion cascade spreads 2 blocks further per wave.",
-                "🍄", 750, NodeCategory.SPORES, -4.2, 0.7, false, "spores_spread_1"));
+                "🍄", 2250, NodeCategory.SPORES, -4.2, 0.7, false, "spores_spread_1"));
 
         // Converging Spores
         registerNode(new UpgradeNode("spores_pandemic", "Fungal Pandemic", "Increases Contagion chance to 85% with intense wave cascades.",
-                "☣️", 2500, NodeCategory.SPORES, -5.4, 0.0, false, "spores_chance_2", "spores_spread_2"));
+                "☣️", 7500, NodeCategory.SPORES, -5.4, 0.0, false, "spores_chance_2", "spores_spread_2"));
         // Apex Spores
         registerNode(new UpgradeNode("spores_master", "Primal Rot (Apex)", "Every withered crop detonates a secondary spore explosion.",
-                "🍂", 5000, NodeCategory.SPORES, -6.6, 0.0, false, "spores_pandemic"));
+                "🍂", 15000, NodeCategory.SPORES, -6.6, 0.0, false, "spores_pandemic"));
 
         // --- 4. LOCUST SWARM TREE (Branching Right - Dark Moss) ---
         registerNode(new UpgradeNode("swarm_root", "Locust Brood", "Unlocks placeable Locust Swarm [R]! (20s cooldown, devours field for 7s)",
-                "🦗", 150, NodeCategory.SWARM, 1.8, 0.0, false, "skull"));
+                "🦗", 450, NodeCategory.SWARM, 1.8, 0.0, false, "skull"));
 
         // Upper Track (Cooldown)
         registerNode(new UpgradeNode("swarm_cd_1", "Rapid Hatch I", "Reduces Locust Swarm cooldown from 20s to 16s.",
-                "⏱️", 400, NodeCategory.SWARM, 3.0, -0.8, false, "swarm_root"));
+                "⏱️", 1200, NodeCategory.SWARM, 3.0, -0.8, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_cd_2", "Constant Brood II", "Reduces Locust Swarm cooldown to 12s.",
-                "⏱️", 1000, NodeCategory.SWARM, 4.2, -0.8, false, "swarm_cd_1"));
+                "⏱️", 3000, NodeCategory.SWARM, 4.2, -0.8, false, "swarm_cd_1"));
         registerNode(new UpgradeNode("swarm_cd_3", "Endless Swarm III", "Reduces Locust Swarm cooldown to 8s.",
-                "⏱️", 2500, NodeCategory.SWARM, 5.4, -0.8, false, "swarm_cd_2"));
+                "⏱️", 7500, NodeCategory.SWARM, 5.4, -0.8, false, "swarm_cd_2"));
 
         // Middle Track (Devour Speed)
         registerNode(new UpgradeNode("swarm_speed_1", "Voracious Pests I", "Swarm devours crops 2x faster.",
-                "🦗", 500, NodeCategory.SWARM, 3.6, 0.0, false, "swarm_root"));
+                "🦗", 1500, NodeCategory.SWARM, 3.6, 0.0, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_speed_2", "Devouring Swarm II", "Swarm devours crops 4x faster.",
-                "🦗", 1500, NodeCategory.SWARM, 4.8, 0.0, false, "swarm_speed_1"));
+                "🦗", 4500, NodeCategory.SWARM, 4.8, 0.0, false, "swarm_speed_1"));
 
         // Lower Track (Swarm Area)
         registerNode(new UpgradeNode("swarm_area_1", "Expanded Swarm I", "Increases Swarm devour radius to 7 blocks.",
-                "+", 600, NodeCategory.SWARM, 3.0, 0.8, false, "swarm_root"));
+                "+", 1800, NodeCategory.SWARM, 3.0, 0.8, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_area_2", "Plague Cloud II", "Increases Swarm devour radius to 10 blocks.",
-                "+", 1800, NodeCategory.SWARM, 4.2, 0.8, false, "swarm_area_1"));
+                "+", 5400, NodeCategory.SWARM, 4.2, 0.8, false, "swarm_area_1"));
 
         // Apex Swarm
         registerNode(new UpgradeNode("swarm_master", "Pestilence Horde (Apex)", "Summons a devastating rat & locust horde that consumes the field.",
-                "🐀", 6000, NodeCategory.SWARM, 6.6, 0.0, false, "swarm_cd_3", "swarm_speed_2", "swarm_area_2"));
+                "🐀", 18000, NodeCategory.SWARM, 6.6, 0.0, false, "swarm_cd_3", "swarm_speed_2", "swarm_area_2"));
     }
 
     // Set of unlocked node IDs

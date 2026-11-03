@@ -20,10 +20,12 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.LanternBlock;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.util.RandomSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,7 +45,7 @@ import java.util.Locale;
 public class UnharvestFieldGenerator {
 
     private static final String MARKER_FILE_NAME = "unharvest_field_generated.json";
-    public static final int BASE_RADIUS = 55;
+    public static final int BASE_RADIUS = 78;
 
     // Structure Centers
     public static final int WINDMILL_X = 26;
@@ -72,7 +74,7 @@ public class UnharvestFieldGenerator {
     private static int currentGroundY = 0;
     private static int currentCropY = 0;
     private static Path currentMarkerFile = null;
-    private static final int BLOCKS_PER_TICK = 150; // Smooth radial block rate (~9s total, zero lag)
+    private static final int BLOCKS_PER_TICK = 250; // Smooth radial block rate (zero lag)
 
     public static class RescanResult {
         public final int total;
@@ -312,18 +314,21 @@ public class UnharvestFieldGenerator {
             player.sendOverlayMessage(Component.literal("§5§l[Unharvest] §ePopulating plague field... §f0%"));
         }
 
-        // 2. Generate Atmospheric Structures immediately
+        // 2. Generate Atmospheric Structures & Border Forest immediately
         generateWindmill(serverLevel, currentGroundY);
         generateFarmerHouse(serverLevel, currentGroundY);
+        generateBorderForest(serverLevel, currentGroundY);
 
         // 3. Enqueue and sort all field coordinates in exact distance order from center (0, 0)
-        int maxScan = BASE_RADIUS + 18;
+        int maxScan = (int) (BASE_RADIUS * 1.65);
         pendingPoints.clear();
 
         for (int x = -maxScan; x <= maxScan; x++) {
             for (int z = -maxScan; z <= maxScan; z++) {
                 double dist = Math.sqrt(x * x + z * z);
-                if (dist <= maxScan + 2) {
+                double angle = Math.atan2(z, x);
+                double shapeRadius = getFieldShapeRadius(angle, x, z);
+                if (dist <= shapeRadius + 2.5) {
                     pendingPoints.add(new FieldPoint(x, z, dist));
                 }
             }
@@ -391,12 +396,7 @@ public class UnharvestFieldGenerator {
             }
 
             double angle = Math.atan2(z, x);
-            double shapeRadius = BASE_RADIUS * (1.0
-                    + 0.25 * Math.sin(3.0 * angle + 0.8)
-                    + 0.16 * Math.cos(5.0 * angle - 1.2)
-                    + 0.12 * Math.sin(2.0 * angle + 2.1)
-                    + 0.08 * Math.cos(7.0 * angle)
-            ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
+            double shapeRadius = getFieldShapeRadius(angle, x, z);
 
             BlockPos floorPos = new BlockPos(x, currentGroundY, z);
             BlockPos cropPos = new BlockPos(x, currentCropY, z);
@@ -777,7 +777,7 @@ public class UnharvestFieldGenerator {
 
         int groundY = getGroundY(level);
         int cropY = groundY + 1;
-        int maxScan = BASE_RADIUS + 25;
+        int maxScan = (int) (BASE_RADIUS * 1.65) + 5;
 
         int witheredCount = 0;
         int remainingCropCount = 0;
@@ -828,6 +828,216 @@ public class UnharvestFieldGenerator {
         } catch (Exception ignored) {}
         stopGeneration();
         startGeneration(server, serverLevel, markerFile, player);
+    }
+
+    public static double getFieldShapeRadius(double angle, int x, int z) {
+        return BASE_RADIUS * (1.0
+                + 0.25 * Math.sin(3.0 * angle + 0.8)
+                + 0.16 * Math.cos(5.0 * angle - 1.2)
+                + 0.12 * Math.sin(2.0 * angle + 2.1)
+                + 0.08 * Math.cos(7.0 * angle)
+        ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
+    }
+
+    public static double getFieldShapeRadius(double angle) {
+        return BASE_RADIUS * (1.0
+                + 0.25 * Math.sin(3.0 * angle + 0.8)
+                + 0.16 * Math.cos(5.0 * angle - 1.2)
+                + 0.12 * Math.sin(2.0 * angle + 2.1)
+                + 0.08 * Math.cos(7.0 * angle)
+        );
+    }
+
+    /**
+     * Generates a thick, multi-layered ring of towering ancient custom trees
+     * enclosing the outer perimeter of the wheat arena.
+     */
+    public static void generateBorderForest(ServerLevel level, int groundY) {
+        RandomSource random = level.getRandom();
+        Constants.LOG.info("[Unharvest] Generating towering ancient forest wall around arena perimeter...");
+
+        // Ring 1 (Inner Forest Layer): 54 trees along the outer border
+        int ring1Count = 54;
+        for (int i = 0; i < ring1Count; i++) {
+            double angle = (i * 2.0 * Math.PI / ring1Count) + ((random.nextDouble() - 0.5) * 0.07);
+            double shapeRadius = getFieldShapeRadius(angle);
+            double dist = shapeRadius + 6.0 + (random.nextDouble() * 3.5);
+
+            int treeX = (int) Math.round(dist * Math.cos(angle));
+            int treeZ = (int) Math.round(dist * Math.sin(angle));
+
+            generateHugeTree(level, treeX, groundY, treeZ, random);
+        }
+
+        // Ring 2 (Outer Staggered Forest Layer): 48 trees providing depth
+        int ring2Count = 48;
+        for (int i = 0; i < ring2Count; i++) {
+            double angle = ((i + 0.5) * 2.0 * Math.PI / ring2Count) + ((random.nextDouble() - 0.5) * 0.07);
+            double shapeRadius = getFieldShapeRadius(angle);
+            double dist = shapeRadius + 14.0 + (random.nextDouble() * 4.5);
+
+            int treeX = (int) Math.round(dist * Math.cos(angle));
+            int treeZ = (int) Math.round(dist * Math.sin(angle));
+
+            generateHugeTree(level, treeX, groundY, treeZ, random);
+        }
+
+        // Ring 3 (Deep Forest Layer): 42 trees creating an impenetrable natural horizon
+        int ring3Count = 42;
+        for (int i = 0; i < ring3Count; i++) {
+            double angle = (i * 2.0 * Math.PI / ring3Count) + ((random.nextDouble() - 0.5) * 0.07);
+            double shapeRadius = getFieldShapeRadius(angle);
+            double dist = shapeRadius + 22.0 + (random.nextDouble() * 5.0);
+
+            int treeX = (int) Math.round(dist * Math.cos(angle));
+            int treeZ = (int) Math.round(dist * Math.sin(angle));
+
+            generateHugeTree(level, treeX, groundY, treeZ, random);
+        }
+
+        Constants.LOG.info("[Unharvest] Successfully generated ~144 huge custom border trees!");
+    }
+
+    /**
+     * Generates a single majestic ancient tree with 2x2 trunk, root buttresses,
+     * sprawling diagonal branches, dense layered canopies, and hanging foliage.
+     */
+    public static void generateHugeTree(ServerLevel level, int x, int groundY, int z, RandomSource random) {
+        int height = 16 + random.nextInt(8); // Height 16 - 23 blocks
+        boolean isDarkOak = (random.nextFloat() < 0.65f);
+        BlockState logState = isDarkOak
+                ? Blocks.DARK_OAK_LOG.defaultBlockState()
+                : Blocks.OAK_LOG.defaultBlockState();
+        BlockState leavesState = isDarkOak
+                ? Blocks.DARK_OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true)
+                : Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+
+        // 1. Root base flare and forest soil (Radius 3)
+        for (int dx = -2; dx <= 3; dx++) {
+            for (int dz = -2; dz <= 3; dz++) {
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist <= 2.8) {
+                    BlockPos soilPos = new BlockPos(x + dx, groundY, z + dz);
+                    if (!level.getBlockState(soilPos).isAir()) {
+                        BlockState soil = (random.nextFloat() < 0.5f) ? Blocks.PODZOL.defaultBlockState() : Blocks.COARSE_DIRT.defaultBlockState();
+                        level.setBlock(soilPos, soil, 2);
+                    }
+                    if (dist > 1.2 && random.nextFloat() < 0.25f) {
+                        BlockPos vegPos = soilPos.above();
+                        if (level.getBlockState(vegPos).isAir()) {
+                            BlockState veg = (random.nextFloat() < 0.5f) ? Blocks.FERN.defaultBlockState() : Blocks.BROWN_MUSHROOM.defaultBlockState();
+                            level.setBlock(vegPos, veg, 2);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Thick 2x2 Trunk
+        for (int y = groundY; y < groundY + height; y++) {
+            level.setBlock(new BlockPos(x, y, z), logState, 2);
+            level.setBlock(new BlockPos(x + 1, y, z), logState, 2);
+            level.setBlock(new BlockPos(x, y, z + 1), logState, 2);
+            level.setBlock(new BlockPos(x + 1, y, z + 1), logState, 2);
+        }
+
+        // Root buttresses at base
+        int[] rootOffsets = {-1, 0, 2, 0, 0, -1, 0, 2, -1, 1, 2, 1, 1, -1, 1, 2};
+        for (int i = 0; i < rootOffsets.length; i += 2) {
+            int rx = x + rootOffsets[i];
+            int rz = z + rootOffsets[i + 1];
+            level.setBlock(new BlockPos(rx, groundY, rz), logState, 2);
+            if (random.nextBoolean()) {
+                level.setBlock(new BlockPos(rx, groundY + 1, rz), logState, 2);
+            }
+        }
+
+        // 3. Sprawling Organic Branches (3 to 5 branches)
+        int numBranches = 3 + random.nextInt(3);
+        double angleStep = (Math.PI * 2) / numBranches;
+        for (int b = 0; b < numBranches; b++) {
+            double branchAngle = b * angleStep + (random.nextDouble() * 0.5 - 0.25);
+            int branchStartY = groundY + height - 7 + random.nextInt(4);
+            int branchLength = 4 + random.nextInt(3);
+
+            int curX = x;
+            int curY = branchStartY;
+            int curZ = z;
+
+            for (int step = 1; step <= branchLength; step++) {
+                curX = x + (int) Math.round(Math.cos(branchAngle) * step);
+                curZ = z + (int) Math.round(Math.sin(branchAngle) * step);
+                if (step % 2 == 0) curY++;
+
+                level.setBlock(new BlockPos(curX, curY, curZ), logState, 2);
+            }
+
+            // Generate leaf cluster at branch tip
+            generateLeafCluster(level, curX, curY, curZ, 3, leavesState, random);
+        }
+
+        // 4. Grand Main Canopy at Top of Trunk
+        int topY = groundY + height;
+        generateMainCanopy(level, x, topY, z, leavesState, random);
+
+        // 5. Hanging lantern on occasional branch (18% chance)
+        if (random.nextFloat() < 0.18f) {
+            int lanternY = groundY + height - 6;
+            BlockPos lanternPos = new BlockPos(x - 2, lanternY, z);
+            if (level.getBlockState(lanternPos).isAir()) {
+                level.setBlock(lanternPos, Blocks.LANTERN.defaultBlockState(), 2);
+            }
+        }
+    }
+
+    private static void generateLeafCluster(ServerLevel level, int cx, int cy, int cz, int radius, BlockState leaves, RandomSource random) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    double dist = Math.sqrt(dx * dx + (dy * 1.3) * (dy * 1.3) + dz * dz);
+                    if (dist <= radius + (random.nextDouble() * 0.4)) {
+                        BlockPos p = new BlockPos(cx + dx, cy + dy, cz + dz);
+                        if (level.getBlockState(p).isAir()) {
+                            level.setBlock(p, leaves, 2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void generateMainCanopy(ServerLevel level, int cx, int cy, int cz, BlockState leaves, RandomSource random) {
+        int radius = 5;
+        for (int dy = -3; dy <= 3; dy++) {
+            double layerRadius = (radius + 0.5) - Math.abs(dy) * 0.9;
+            for (int dx = (int) -layerRadius; dx <= layerRadius; dx++) {
+                for (int dz = (int) -layerRadius; dz <= layerRadius; dz++) {
+                    double dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist <= layerRadius + (random.nextDouble() * 0.3)) {
+                        BlockPos p = new BlockPos(cx + dx, cy + dy, cz + dz);
+                        if (level.getBlockState(p).isAir()) {
+                            level.setBlock(p, leaves, 2);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hanging drooping leaves (vines/droop effect)
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (random.nextFloat() < 0.18f) {
+                    BlockPos bottomPos = new BlockPos(cx + dx, cy - 4, cz + dz);
+                    BlockPos abovePos = bottomPos.above();
+                    if (level.getBlockState(abovePos).is(leaves.getBlock()) && level.getBlockState(bottomPos).isAir()) {
+                        level.setBlock(bottomPos, leaves, 2);
+                        if (random.nextFloat() < 0.35f) {
+                            level.setBlock(bottomPos.below(), leaves, 2);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public static void clearCache() {
