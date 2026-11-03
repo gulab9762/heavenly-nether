@@ -177,6 +177,28 @@ public class UnharvestFieldGenerator {
     }
 
     /**
+     * Calculates target ground elevation at relative offset (dx, dz).
+     * Flat central plateau inside FLAT_RADIUS, smoothly blending into natural terrain out to TRANSITION_RADIUS.
+     */
+    public static int getTargetGroundY(ServerLevel level, int dx, int dz) {
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= FLAT_RADIUS) {
+            return currentGroundY;
+        } else if (dist <= TRANSITION_RADIUS) {
+            int wx = currentOriginX + dx;
+            int wz = currentOriginZ + dz;
+            int natY = getNaturalGroundY(level, wx, wz);
+            double t = (dist - FLAT_RADIUS) / (double) (TRANSITION_RADIUS - FLAT_RADIUS);
+            double s = t * t * (3.0 - 2.0 * t); // smoothstep
+            return (int) Math.round((1.0 - s) * currentGroundY + s * natY);
+        } else {
+            int wx = currentOriginX + dx;
+            int wz = currentOriginZ + dz;
+            return getNaturalGroundY(level, wx, wz);
+        }
+    }
+
+    /**
      * Identifies structure blocks belonging to the Windmill or Farmer's House.
      * Prevents terrain clearing from accidentally slicing through roofs, balconies, and sails.
      */
@@ -504,14 +526,7 @@ public class UnharvestFieldGenerator {
 
             // Target ground elevation calculation (flat core plateau + smoothstep blend into surrounding terrain)
             int natY = getNaturalGroundY(serverLevel, worldX, worldZ);
-            int targetY;
-            if (dist <= FLAT_RADIUS) {
-                targetY = currentGroundY;
-            } else {
-                double t = (dist - FLAT_RADIUS) / (double) (TRANSITION_RADIUS - FLAT_RADIUS);
-                double s = t * t * (3.0 - 2.0 * t); // smoothstep
-                targetY = (int) Math.round((1.0 - s) * currentGroundY + s * natY);
-            }
+            int targetY = getTargetGroundY(serverLevel, dx, dz);
 
             // Player safety nudge: if any player is near this column, make sure their feet stay above targetY
             if (server != null) {
@@ -526,8 +541,9 @@ public class UnharvestFieldGenerator {
                 }
             }
 
-            // Air excavation above target ground (clears trees, leaves, hills, floating debris)
-            int clearTop = Math.min(serverLevel.getMaxY(), Math.max(natY + 20, targetY + 24));
+            // Level 1 Air excavation: clear from targetY + 1 all the way up to highest block in column
+            int worldSurfaceY = serverLevel.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ);
+            int clearTop = Math.min(serverLevel.getMaxY(), Math.max(worldSurfaceY + 2, targetY + 32));
             for (int y = targetY + 1; y <= clearTop; y++) {
                 BlockPos p = new BlockPos(worldX, y, worldZ);
                 BlockState bs = serverLevel.getBlockState(p);
@@ -640,6 +656,9 @@ public class UnharvestFieldGenerator {
     }
 
     private static void finishGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
+        // Level 2 Airspace & Canopy Clearance: sweeps all high floating leaves, severed canopies, and mountain overhangs
+        int clearedHighBlocks = performLevel2Clearance(server, serverLevel);
+
         // Ensure structures are pristine
         generateWindmill(serverLevel, currentOriginX + WINDMILL_OFFSET_X, currentOriginZ + WINDMILL_OFFSET_Z, currentGroundY);
         generateFarmerHouse(serverLevel, currentOriginX + HOUSE_OFFSET_X, currentOriginZ + HOUSE_OFFSET_Z, currentGroundY);
@@ -666,8 +685,8 @@ public class UnharvestFieldGenerator {
         if (player != null) {
             player.sendSystemMessage(Component.literal(String.format(
                     Locale.US,
-                    "§5§l[Unharvest] §aPlague field population complete! §e%,d§a wheat crops placed. (§ePeaceful difficulty§a)",
-                    totalPlacedCrops
+                    "§5§l[Unharvest] §aPlague field population complete! §e%,d§a wheat crops placed. (§bLevel 2 Airspace Cleared: %,d blocks§a)",
+                    totalPlacedCrops, clearedHighBlocks
             )));
             player.sendOverlayMessage(Component.literal(String.format(
                     Locale.US,
@@ -675,6 +694,74 @@ public class UnharvestFieldGenerator {
                     totalPlacedCrops
             )));
         }
+    }
+
+    /**
+     * Level 2 Clearance: High Airspace & Perimeter Canopy Sweep.
+     * Sweeps the entire arena airspace and outer buffer perimeter (radius up to TRANSITION_RADIUS + 8)
+     * from ground elevation all the way to world maximum height.
+     * Eliminates any lingering floating leaves, orphaned canopies, severed tree trunks,
+     * or floating mountain overhangs, guaranteeing a pristine, open sky.
+     *
+     * @return Number of floating debris / canopy blocks cleared.
+     */
+    public static int performLevel2Clearance(MinecraftServer server, ServerLevel serverLevel) {
+        if (serverLevel == null) return 0;
+        int clearedBlocks = 0;
+        BlockState air = Blocks.AIR.defaultBlockState();
+        int sweepRadius = TRANSITION_RADIUS + 8; // Radius 84 covers arena + transition slope + overhangs
+
+        for (int dx = -sweepRadius; dx <= sweepRadius; dx++) {
+            for (int dz = -sweepRadius; dz <= sweepRadius; dz++) {
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist > sweepRadius) continue;
+
+                int wx = currentOriginX + dx;
+                int wz = currentOriginZ + dz;
+                serverLevel.getChunk(wx >> 4, wz >> 4);
+
+                int topY = serverLevel.getHeight(Heightmap.Types.WORLD_SURFACE, wx, wz);
+                int groundY = getTargetGroundY(serverLevel, dx, dz);
+
+                // If column is already clear to the sky, skip instantly
+                if (topY <= groundY) continue;
+
+                boolean isInsideArena = dist <= TRANSITION_RADIUS;
+
+                for (int y = topY; y > groundY; y--) {
+                    BlockPos p = new BlockPos(wx, y, wz);
+                    BlockState bs = serverLevel.getBlockState(p);
+                    if (bs.isAir()) continue;
+
+                    // Preserve structures (windmill and farmhouse)
+                    if (isNearStructure(dx, dz) && isStructureBlock(bs)) {
+                        continue;
+                    }
+
+                    // Preserve crops, border fences, and lanterns
+                    if (bs.is(Blocks.WHEAT) || bs.is(Blocks.SPRUCE_FENCE) || bs.is(Blocks.LANTERN)) {
+                        continue;
+                    }
+
+                    // Inside arena: clear all floating foliage, dirt overhangs, severed trees, and debris
+                    if (isInsideArena) {
+                        serverLevel.setBlock(p, air, 2);
+                        clearedBlocks++;
+                    } else {
+                        // In outer buffer ring: clear any foliage (leaves, logs, hanging vines) or floating overhangs
+                        if (bs.is(BlockTags.LEAVES) || bs.is(BlockTags.LOGS) || bs.is(Blocks.VINE)
+                                || bs.is(Blocks.MOSS_CARPET) || bs.is(Blocks.HANGING_ROOTS)
+                                || !serverLevel.getBlockState(p.below()).isSolid()) {
+                            serverLevel.setBlock(p, air, 2);
+                            clearedBlocks++;
+                        }
+                    }
+                }
+            }
+        }
+
+        Constants.LOG.info("[Unharvest] Level 2 Clearance complete: cleared {} floating canopy/debris blocks.", clearedBlocks);
+        return clearedBlocks;
     }
 
     /**
