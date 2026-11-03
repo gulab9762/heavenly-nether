@@ -1,5 +1,6 @@
 package com.unharvest.gui;
 
+import com.unharvest.UnharvestManager;
 import com.unharvest.UnharvestState;
 import com.unharvest.UnharvestState.NodeCategory;
 import com.unharvest.UnharvestState.UpgradeNode;
@@ -50,6 +51,7 @@ public class UnharvestUpgradeScreen extends Screen {
                                 confirmed -> {
                                     if (confirmed) {
                                         UnharvestState.getInstance().resetAll();
+                                        UnharvestManager.resetSpeedBoost(this.minecraft != null ? this.minecraft.player : null);
                                         playUpgradeSound();
                                     }
                                     if (this.minecraft != null) {

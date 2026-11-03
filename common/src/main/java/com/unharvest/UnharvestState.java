@@ -143,23 +143,23 @@ public class UnharvestState {
 
         // Upper Track (Cooldown)
         registerNode(new UpgradeNode("swarm_cd_1", "Rapid Hatch I", "Reduces Locust Swarm cooldown from 20s to 16s.",
-                "⏱️", 1200, NodeCategory.SWARM, 3.0, -0.8, false, "swarm_root"));
+                "⏱️", 1200, NodeCategory.SWARM, 3.0, -1.25, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_cd_2", "Constant Brood II", "Reduces Locust Swarm cooldown to 12s.",
-                "⏱️", 3000, NodeCategory.SWARM, 4.2, -0.8, false, "swarm_cd_1"));
+                "⏱️", 3000, NodeCategory.SWARM, 4.2, -1.25, false, "swarm_cd_1"));
         registerNode(new UpgradeNode("swarm_cd_3", "Endless Swarm III", "Reduces Locust Swarm cooldown to 8s.",
-                "⏱️", 7500, NodeCategory.SWARM, 5.4, -0.8, false, "swarm_cd_2"));
+                "⏱️", 7500, NodeCategory.SWARM, 5.4, -1.25, false, "swarm_cd_2"));
 
         // Middle Track (Devour Speed)
         registerNode(new UpgradeNode("swarm_speed_1", "Voracious Pests I", "Swarm devours crops 2x faster.",
-                "🦗", 1500, NodeCategory.SWARM, 3.6, 0.0, false, "swarm_root"));
+                "🦗", 1500, NodeCategory.SWARM, 3.5, 0.0, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_speed_2", "Devouring Swarm II", "Swarm devours crops 4x faster.",
-                "🦗", 4500, NodeCategory.SWARM, 4.8, 0.0, false, "swarm_speed_1"));
+                "🦗", 4500, NodeCategory.SWARM, 4.9, 0.0, false, "swarm_speed_1"));
 
         // Lower Track (Swarm Area)
         registerNode(new UpgradeNode("swarm_area_1", "Expanded Swarm I", "Increases Swarm devour radius to 14 blocks.",
-                "+", 1800, NodeCategory.SWARM, 3.0, 0.8, false, "swarm_root"));
+                "+", 1800, NodeCategory.SWARM, 3.2, 1.25, false, "swarm_root"));
         registerNode(new UpgradeNode("swarm_area_2", "Plague Cloud II", "Increases Swarm devour radius to 20 blocks.",
-                "+", 5400, NodeCategory.SWARM, 4.2, 0.8, false, "swarm_area_1"));
+                "+", 5400, NodeCategory.SWARM, 4.6, 1.25, false, "swarm_area_1"));
 
         // Apex Swarm
         registerNode(new UpgradeNode("swarm_master", "Pestilence Horde (Apex)", "Summons a devastating rat & locust horde in a 24-block radius.",

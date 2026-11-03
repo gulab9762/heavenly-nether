@@ -17,6 +17,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball;
@@ -111,6 +113,7 @@ public class UnharvestManager {
     private static int swarmCooldownTicks = 0;
     private static boolean wasInitializedThisSession = false;
     private static boolean lastUpgradeAvailable = false;
+    private static int lastSpeedTier = 0;
 
     public static void playUpgradeNotificationSound() {
         Minecraft client = Minecraft.getInstance();
@@ -210,11 +213,29 @@ public class UnharvestManager {
             PENDING_PROJECTILES.clear();
         }
         swarmCooldownTicks = 0;
+        lastSpeedTier = 0;
+        resetSpeedBoost(Minecraft.getInstance().player);
         wasInitializedThisSession = false;
         lastUpgradeAvailable = false;
         UnharvestFieldGenerator.clearCache();
         UnharvestState.getInstance().unload();
         UnharvestTimer.reset();
+    }
+
+    public static void resetSpeedBoost(Player player) {
+        lastSpeedTier = 0;
+        if (player != null && player.hasEffect(MobEffects.SPEED)) {
+            player.removeEffect(MobEffects.SPEED);
+        }
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server != null && player != null) {
+            server.execute(() -> {
+                ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
+                if (serverPlayer != null && serverPlayer.hasEffect(MobEffects.SPEED)) {
+                    serverPlayer.removeEffect(MobEffects.SPEED);
+                }
+            });
+        }
     }
 
     /**
@@ -578,6 +599,9 @@ public class UnharvestManager {
             tickActiveSwarms(level, player);
         }
 
+        // 2.5. Passive movement speed boost based on % completion (Speed 1 at 10%, Speed 2 at 30%, Speed 3 at 60%)
+        tickPassiveSpeedBoost(level, player);
+
         // 3. Initial field setup and strict inventory lock verification
         if (clientTickCount % 20 == 1) {
             UnharvestFieldGenerator.ensureFieldGenerated(level);
@@ -616,6 +640,81 @@ public class UnharvestManager {
                 }
             }
             openVictoryScreen();
+        }
+    }
+
+    /**
+     * Passively awards movement speed boost based on % of field withered:
+     * - Speed I at >= 10% cleared
+     * - Speed II at >= 30% cleared
+     * - Speed III (max) at >= 60% cleared
+     * Uses ambient=true, visible=false, showIcon=false so no potion icon or particles appear.
+     */
+    private static void tickPassiveSpeedBoost(Level level, Player player) {
+        if (level == null || player == null) return;
+        UnharvestState state = UnharvestState.getInstance();
+        double pct = state.getClearedPercentage();
+
+        int targetTier = 0;
+        int amplifier = -1;
+        if (pct >= 60.0) {
+            targetTier = 3;
+            amplifier = 2; // Speed III
+        } else if (pct >= 30.0) {
+            targetTier = 2;
+            amplifier = 1; // Speed II
+        } else if (pct >= 10.0) {
+            targetTier = 1;
+            amplifier = 0; // Speed I
+        }
+
+        // Notification sound & overlay when unlocking a new speed tier
+        if (targetTier > lastSpeedTier) {
+            if (targetTier == 1) {
+                player.sendOverlayMessage(Component.literal("§b§l⚡ Speed Boost I Active! §7(10% Cleared)"));
+                playUpgradeNotificationSound();
+            } else if (targetTier == 2) {
+                player.sendOverlayMessage(Component.literal("§b§l⚡ Speed Boost II Active! §7(30% Cleared)"));
+                playUpgradeNotificationSound();
+            } else if (targetTier == 3) {
+                player.sendOverlayMessage(Component.literal("§b§l⚡ Speed Boost III (Max) Active! §7(60% Cleared)"));
+                Minecraft client = Minecraft.getInstance();
+                if (client != null && client.getSoundManager() != null) {
+                    client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.2f));
+                }
+            }
+        }
+        lastSpeedTier = targetTier;
+
+        // Periodically apply or clear effect (refreshes duration)
+        if (clientTickCount % 20 == 5) {
+            MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+            if (amplifier >= 0) {
+                final int amp = amplifier;
+                // Client-side prediction (ambient=true, visible=false, showIcon=false)
+                player.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, amp, true, false, false));
+                if (server != null) {
+                    server.execute(() -> {
+                        ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
+                        if (serverPlayer != null) {
+                            serverPlayer.addEffect(new MobEffectInstance(MobEffects.SPEED, 60, amp, true, false, false));
+                        }
+                    });
+                }
+            } else {
+                // Below 10% or after reset: remove speed effect if active
+                if (player.hasEffect(MobEffects.SPEED)) {
+                    player.removeEffect(MobEffects.SPEED);
+                }
+                if (server != null) {
+                    server.execute(() -> {
+                        ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
+                        if (serverPlayer != null && serverPlayer.hasEffect(MobEffects.SPEED)) {
+                            serverPlayer.removeEffect(MobEffects.SPEED);
+                        }
+                    });
+                }
+            }
         }
     }
 

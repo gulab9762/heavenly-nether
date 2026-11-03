@@ -45,6 +45,7 @@ public class UnharvestCommands {
         UnharvestState.getInstance().resetAll();
         UnharvestFieldGenerator.clearCache();
         UnharvestTimer.reset();
+        UnharvestManager.resetSpeedBoost(player);
         if (player != null) {
             player.sendSystemMessage(Component.literal("§5§l[Unharvest] §aAll progress, plague essence, upgrades, and timer have been reset to zero!"));
         }
