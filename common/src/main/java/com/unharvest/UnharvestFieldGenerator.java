@@ -19,9 +19,11 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
+import net.minecraft.world.level.block.FlowerBlock;
 import net.minecraft.world.level.block.LanternBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.storage.LevelResource;
 
@@ -33,10 +35,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Generates an expanded organic wheat arena (~9,000+ crops) at world spawn
- * with atmospheric farm structures (Dutch Windmill and rustic Farmer's Barn/House),
- * walking dirt paths, coarse dirt perimeter, and Peaceful difficulty.
- *
+ * Concentric Radial Field Generator & Natural Terraformer for Unharvest.
+ * Clears and flattens a wide circular plateau around spawn in normal worlds,
+ * blending smoothly into the surrounding natural hills with a gentle slope.
  * Expands progressively in concentric radial rings from the center outward across ticks
  * so the world update and rendering pipeline handle every block effortlessly without lag spikes.
  */
@@ -44,12 +45,20 @@ public class UnharvestFieldGenerator {
 
     private static final String MARKER_FILE_NAME = "unharvest_field_generated.json";
     public static final int BASE_RADIUS = 55;
+    public static final int FLAT_RADIUS = 58;
+    public static final int TRANSITION_RADIUS = 76;
 
-    // Structure Centers
-    public static final int WINDMILL_X = 26;
-    public static final int WINDMILL_Z = -24;
-    public static final int HOUSE_X = -26;
-    public static final int HOUSE_Z = 24;
+    // Relative structure offsets from field center
+    public static final int WINDMILL_OFFSET_X = 26;
+    public static final int WINDMILL_OFFSET_Z = -24;
+    public static final int HOUSE_OFFSET_X = -26;
+    public static final int HOUSE_OFFSET_Z = 24;
+
+    // Backwards-compatible aliases
+    public static final int WINDMILL_X = WINDMILL_OFFSET_X;
+    public static final int WINDMILL_Z = WINDMILL_OFFSET_Z;
+    public static final int HOUSE_X = HOUSE_OFFSET_X;
+    public static final int HOUSE_Z = HOUSE_OFFSET_Z;
 
     // Concentric Radial Point Representation
     public static class FieldPoint {
@@ -69,10 +78,12 @@ public class UnharvestFieldGenerator {
     private static final List<FieldPoint> pendingPoints = new ArrayList<>();
     private static int totalPointsToProcess = 0;
     private static int processedPointsCount = 0;
-    private static int currentGroundY = 0;
-    private static int currentCropY = 0;
+    private static int currentOriginX = 0;
+    private static int currentOriginZ = 0;
+    private static int currentGroundY = 64;
+    private static int currentCropY = 65;
     private static Path currentMarkerFile = null;
-    private static final int BLOCKS_PER_TICK = 150; // Smooth radial block rate (~9s total, zero lag)
+    private static final int BLOCKS_PER_TICK = 250; // Smooth radial block rate (~3.5s total, zero lag)
 
     public static class RescanResult {
         public final int total;
@@ -107,29 +118,58 @@ public class UnharvestFieldGenerator {
     }
 
     /**
-     * Finds the ground Y coordinate dynamically by scanning at (0, 0).
+     * Determines natural solid terrain surface at (x, z), ignoring foliage, flowers, and snow.
      */
-    public static int getGroundY(Level level) {
-        if (level == null) return -60;
-
-        int maxY = Math.min(level.getMaxY(), 100);
-        int minY = level.getMinY();
-
-        for (int y = maxY; y >= minY; y--) {
-            BlockPos p = new BlockPos(0, y, 0);
+    public static int getNaturalGroundY(ServerLevel level, int x, int z) {
+        int height = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        for (int y = height; y >= level.getMinY(); y--) {
+            BlockPos p = new BlockPos(x, y, z);
             BlockState state = level.getBlockState(p);
-            if (!state.isAir()) {
-                if (state.is(Blocks.WHEAT) || state.is(Blocks.WITHER_ROSE)) {
-                    return y - 1;
-                }
+            if (state.is(Blocks.WATER) || state.is(Blocks.LAVA)) {
+                return y;
+            }
+            if (!state.isAir() && !state.is(Blocks.SHORT_GRASS) && !state.is(Blocks.TALL_GRASS)
+                    && !(state.getBlock() instanceof FlowerBlock) && !state.is(Blocks.SNOW)
+                    && !state.is(Blocks.FERN) && !state.is(Blocks.LARGE_FERN)) {
                 return y;
             }
         }
-        return level.getMinY() + 4;
+        return Math.max(63, level.getMinY() + 60);
+    }
+
+    /**
+     * Calculates the ideal baseline plateau ground Y by sampling natural heights around the center.
+     */
+    public static int getGroundY(Level level, int originX, int originZ) {
+        if (level == null) return 64;
+
+        if (level instanceof ServerLevel serverLevel) {
+            int y0 = getNaturalGroundY(serverLevel, originX, originZ);
+            int y1 = getNaturalGroundY(serverLevel, originX + 16, originZ);
+            int y2 = getNaturalGroundY(serverLevel, originX - 16, originZ);
+            int y3 = getNaturalGroundY(serverLevel, originX, originZ + 16);
+            int y4 = getNaturalGroundY(serverLevel, originX, originZ - 16);
+            int avg = (y0 + y1 + y2 + y3 + y4) / 5;
+            return Math.max(63, avg);
+        }
+
+        return currentGroundY > 0 ? currentGroundY : 64;
+    }
+
+    public static int getGroundY(Level level) {
+        return currentGroundY > 0 ? currentGroundY : 64;
     }
 
     public static int getWheatY(Level level) {
         return getGroundY(level) + 1;
+    }
+
+    public static int getOriginX() {
+        return currentOriginX;
+    }
+
+    public static int getOriginZ() {
+        return currentOriginZ;
     }
 
     private static double distToSegment(double px, double pz, double x1, double z1, double x2, double z2) {
@@ -143,37 +183,34 @@ public class UnharvestFieldGenerator {
         return Math.hypot(px - projX, pz - projZ);
     }
 
-    public static boolean isPath(int x, int z) {
-        if (x * x + z * z <= 10) return true; // Spawn clearing
-        if (distToSegment(x, z, 0, 0, WINDMILL_X - 2, WINDMILL_Z + 4) <= 1.5) return true;
-        if (distToSegment(x, z, 0, 0, HOUSE_X + 2, HOUSE_Z - 4) <= 1.5) return true;
+    public static boolean isPath(int dx, int dz) {
+        if (dx * dx + dz * dz <= 10) return true; // Spawn clearing
+        if (distToSegment(dx, dz, 0, 0, WINDMILL_OFFSET_X - 2, WINDMILL_OFFSET_Z + 4) <= 1.5) return true;
+        if (distToSegment(dx, dz, 0, 0, HOUSE_OFFSET_X + 2, HOUSE_OFFSET_Z - 4) <= 1.5) return true;
         return false;
     }
 
     /**
-     * Exact solid structure footprint.
-     * Only covers the actual walls and interior of the house, and the stone base of the windmill.
-     * Everything outside these bounds will generate dense wheat right up to the walls!
+     * Exact solid structure footprint using relative center offsets.
      */
-    public static boolean isSolidStructure(int x, int z) {
-        // Farmer's House walls and interior: minX..maxX, minZ..maxZ
-        int minX = HOUSE_X - 4;
-        int maxX = HOUSE_X + 4;
-        int minZ = HOUSE_Z - 3;
-        int maxZ = HOUSE_Z + 4;
-        if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+    public static boolean isSolidStructure(int dx, int dz) {
+        int minX = HOUSE_OFFSET_X - 4;
+        int maxX = HOUSE_OFFSET_X + 4;
+        int minZ = HOUSE_OFFSET_Z - 3;
+        int maxZ = HOUSE_OFFSET_Z + 4;
+        if (dx >= minX && dx <= maxX && dz >= minZ && dz <= maxZ) {
             return true;
         }
 
         // Porch floor
         int porchZ = minZ - 1;
-        if (x >= HOUSE_X - 2 && x <= HOUSE_X + 2 && z == porchZ) {
+        if (dx >= HOUSE_OFFSET_X - 2 && dx <= HOUSE_OFFSET_X + 2 && dz == porchZ) {
             return true;
         }
 
-        // Windmill round stone base (dx^2 + dz^2 <= 10)
-        int wdx = x - WINDMILL_X;
-        int wdz = z - WINDMILL_Z;
+        // Windmill round stone base (wdx^2 + wdz^2 <= 10)
+        int wdx = dx - WINDMILL_OFFSET_X;
+        int wdz = dz - WINDMILL_OFFSET_Z;
         if (wdx * wdx + wdz * wdz <= 10) {
             return true;
         }
@@ -181,17 +218,17 @@ public class UnharvestFieldGenerator {
         return false;
     }
 
-    public static boolean isNearStructure(int x, int z) {
-        int minX = HOUSE_X - 6;
-        int maxX = HOUSE_X + 6;
-        int minZ = HOUSE_Z - 5;
-        int maxZ = HOUSE_Z + 6;
-        if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+    public static boolean isNearStructure(int dx, int dz) {
+        int minX = HOUSE_OFFSET_X - 6;
+        int maxX = HOUSE_OFFSET_X + 6;
+        int minZ = HOUSE_OFFSET_Z - 5;
+        int maxZ = HOUSE_OFFSET_Z + 6;
+        if (dx >= minX && dx <= maxX && dz >= minZ && dz <= maxZ) {
             return true;
         }
 
-        int wdx = x - WINDMILL_X;
-        int wdz = z - WINDMILL_Z;
+        int wdx = dx - WINDMILL_OFFSET_X;
+        int wdz = dz - WINDMILL_OFFSET_Z;
         if (wdx * wdx + wdz * wdz <= 64) {
             return true;
         }
@@ -256,6 +293,10 @@ public class UnharvestFieldGenerator {
                 if (json.has("totalCrops")) {
                     UnharvestState.getInstance().setFieldTotalCrops(json.get("totalCrops").getAsInt());
                 }
+                if (json.has("centerX")) currentOriginX = json.get("centerX").getAsInt();
+                if (json.has("centerZ")) currentOriginZ = json.get("centerZ").getAsInt();
+                if (json.has("groundY")) currentGroundY = json.get("groundY").getAsInt();
+                currentCropY = currentGroundY + 1;
             } catch (Exception ignored) {}
             return;
         }
@@ -268,7 +309,7 @@ public class UnharvestFieldGenerator {
     /**
      * Initializes non-blocking radial generation:
      * Teleports the player, constructs the complete structures, and enqueues all field coordinates
-     * sorted in exact radial distance order from (0, 0) to expand outward smoothly without lag spikes.
+     * sorted in exact radial distance order from field origin to expand outward smoothly without lag spikes.
      */
     public static synchronized void startGeneration(MinecraftServer server, ServerLevel serverLevel, Path markerFile, Player player) {
         if (isGenerating) {
@@ -295,47 +336,48 @@ public class UnharvestFieldGenerator {
         UnharvestState.getInstance().setVictoryShown(false);
         UnharvestTimer.reset();
 
-        currentGroundY = getGroundY(serverLevel);
+        // Determine field origin dynamically from world spawn point
+        BlockPos spawn = serverLevel.getRespawnData() != null ? serverLevel.getRespawnData().pos() : new BlockPos(0, 64, 0);
+        currentOriginX = spawn.getX();
+        currentOriginZ = spawn.getZ();
+        currentGroundY = getGroundY(serverLevel, currentOriginX, currentOriginZ);
         currentCropY = currentGroundY + 1;
 
         // 1. Set spawn and teleport player
-        BlockPos spawnPos = new BlockPos(0, currentCropY, 0);
+        BlockPos spawnPos = new BlockPos(currentOriginX, currentCropY, currentOriginZ);
         serverLevel.setRespawnData(LevelData.RespawnData.of(Level.OVERWORLD, spawnPos, 0.0f, 0.0f));
 
         LocalPlayer localPlayer = Minecraft.getInstance().player;
         if (localPlayer != null) {
-            localPlayer.teleportTo(0.5, currentCropY, 0.5);
+            localPlayer.teleportTo(currentOriginX + 0.5, currentCropY, currentOriginZ + 0.5);
         }
 
         if (player != null) {
-            // player.sendSystemMessage(Component.literal("§5§l[Unharvest] §6Starting radial field generation from center... expanding outward smoothly."));
             player.sendOverlayMessage(Component.literal("§5§l[Unharvest] §ePopulating plague field... §f0%"));
         }
 
-        // 2. Generate Atmospheric Structures immediately
-        generateWindmill(serverLevel, currentGroundY);
-        generateFarmerHouse(serverLevel, currentGroundY);
+        // 2. Generate Atmospheric Structures immediately with solid foundations
+        generateWindmill(serverLevel, currentOriginX + WINDMILL_OFFSET_X, currentOriginZ + WINDMILL_OFFSET_Z, currentGroundY);
+        generateFarmerHouse(serverLevel, currentOriginX + HOUSE_OFFSET_X, currentOriginZ + HOUSE_OFFSET_Z, currentGroundY);
 
-        // 3. Enqueue and sort all field coordinates in exact distance order from center (0, 0)
-        int maxScan = BASE_RADIUS + 18;
+        // 3. Enqueue and sort all field coordinates in exact distance order from origin
         pendingPoints.clear();
-
-        for (int x = -maxScan; x <= maxScan; x++) {
-            for (int z = -maxScan; z <= maxScan; z++) {
-                double dist = Math.sqrt(x * x + z * z);
-                if (dist <= maxScan + 2) {
-                    pendingPoints.add(new FieldPoint(x, z, dist));
+        for (int dx = -TRANSITION_RADIUS; dx <= TRANSITION_RADIUS; dx++) {
+            for (int dz = -TRANSITION_RADIUS; dz <= TRANSITION_RADIUS; dz++) {
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist <= TRANSITION_RADIUS) {
+                    pendingPoints.add(new FieldPoint(dx, dz, dist));
                 }
             }
         }
 
-        // Sort in exact ascending order of distance from (0, 0)
+        // Sort in exact ascending order of distance from center (0, 0)
         pendingPoints.sort(Comparator.comparingDouble(p -> p.dist));
         totalPointsToProcess = pendingPoints.size();
     }
 
     /**
-     * Ticks concentric radial field population across game ticks.
+     * Ticks concentric radial field population and smooth natural terraforming across game ticks.
      * Each tick processes a batch of coordinates expanding outward in concentric rings.
      */
     public static synchronized void tickGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
@@ -345,6 +387,10 @@ public class UnharvestFieldGenerator {
         BlockState matureWheat = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
         BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
         BlockState dirtPath = Blocks.DIRT_PATH.defaultBlockState();
+        BlockState grassBlock = Blocks.GRASS_BLOCK.defaultBlockState();
+        BlockState dirt = Blocks.DIRT.defaultBlockState();
+        BlockState air = Blocks.AIR.defaultBlockState();
+        BlockState cobblestone = Blocks.COBBLESTONE.defaultBlockState();
         BlockState fenceState = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState lanternState = Blocks.LANTERN.defaultBlockState();
 
@@ -354,55 +400,90 @@ public class UnharvestFieldGenerator {
             FieldPoint pt = pendingPoints.remove(0);
             processedPointsCount++;
 
-            int x = pt.x;
-            int z = pt.z;
+            int dx = pt.x;
+            int dz = pt.z;
             double dist = pt.dist;
 
-            // Skip solid building interiors and foundations
-            if (isSolidStructure(x, z)) {
-                continue;
+            int worldX = currentOriginX + dx;
+            int worldZ = currentOriginZ + dz;
+
+            // Target ground elevation calculation (flat core plateau + smoothstep blend into surrounding terrain)
+            int natY = getNaturalGroundY(serverLevel, worldX, worldZ);
+            int targetY;
+            if (dist <= FLAT_RADIUS) {
+                targetY = currentGroundY;
+            } else {
+                double t = (dist - FLAT_RADIUS) / (double) (TRANSITION_RADIUS - FLAT_RADIUS);
+                double s = t * t * (3.0 - 2.0 * t); // smoothstep
+                targetY = (int) Math.round((1.0 - s) * currentGroundY + s * natY);
             }
 
-            // Path handling
-            if (isPath(x, z)) {
-                BlockPos floorPos = new BlockPos(x, currentGroundY, z);
-                BlockPos cropPos = new BlockPos(x, currentCropY, z);
-                serverLevel.setBlock(floorPos, ((x + z) % 3 == 0) ? coarseDirt : dirtPath, 2);
-                serverLevel.setBlock(cropPos, Blocks.AIR.defaultBlockState(), 2);
-                continue;
-            }
-
-            // Clear any debris or floating structures above the field (only 2 blocks high to avoid CPU lag)
-            // Do NOT clear above currentCropY + 1 near structures so roof eaves, balcony, and sails are preserved!
-            if (!isNearStructure(x, z)) {
-                for (int clearY = currentCropY + 1; clearY <= currentCropY + 2; clearY++) {
-                    BlockPos abovePos = new BlockPos(x, clearY, z);
-                    if (!serverLevel.getBlockState(abovePos).isAir()) {
-                        serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+            // Air excavation above target ground (clears trees, leaves, hills, floating debris)
+            if (isNearStructure(dx, dz)) {
+                for (int y = targetY + 1; y <= currentGroundY + 1; y++) {
+                    BlockPos p = new BlockPos(worldX, y, worldZ);
+                    BlockState bs = serverLevel.getBlockState(p);
+                    if (!bs.isAir() && !bs.is(Blocks.DARK_OAK_PLANKS) && !bs.is(Blocks.SPRUCE_FENCE)
+                            && !bs.is(Blocks.WOOL.white()) && !bs.is(Blocks.COBBLESTONE)
+                            && !bs.is(Blocks.SPRUCE_PLANKS) && !bs.is(Blocks.SPRUCE_LOG)) {
+                        serverLevel.setBlock(p, air, 2);
                     }
                 }
             } else {
-                // Near structure: only clear the space right above the crop if it's not part of the roof or sails
-                BlockPos abovePos = new BlockPos(x, currentCropY + 1, z);
-                BlockState abState = serverLevel.getBlockState(abovePos);
-                if (!abState.isAir() && !abState.is(Blocks.DARK_OAK_PLANKS) && !abState.is(Blocks.SPRUCE_FENCE) && !abState.is(Blocks.WOOL.white())) {
-                    serverLevel.setBlock(abovePos, Blocks.AIR.defaultBlockState(), 2);
+                int clearTop = Math.min(serverLevel.getMaxY(), Math.max(natY + 10, targetY + 10));
+                for (int y = targetY + 1; y <= clearTop; y++) {
+                    BlockPos p = new BlockPos(worldX, y, worldZ);
+                    if (!serverLevel.getBlockState(p).isAir()) {
+                        serverLevel.setBlock(p, air, 2);
+                    }
                 }
             }
 
-            double angle = Math.atan2(z, x);
+            // Solid foundation filling below target ground (fills ravines, water, dips)
+            for (int y = targetY - 1; y >= targetY - 4; y--) {
+                BlockPos p = new BlockPos(worldX, y, worldZ);
+                BlockState bs = serverLevel.getBlockState(p);
+                if (!bs.isSolid() || bs.is(Blocks.WATER) || bs.is(Blocks.LAVA)) {
+                    serverLevel.setBlock(p, dirt, 2);
+                }
+            }
+            if (natY < targetY) {
+                for (int y = natY; y < targetY; y++) {
+                    BlockPos p = new BlockPos(worldX, y, worldZ);
+                    serverLevel.setBlock(p, dirt, 2);
+                }
+            }
+
+            // Surface block placement at target ground elevation
+            BlockPos floorPos = new BlockPos(worldX, targetY, worldZ);
+            BlockPos cropPos = new BlockPos(worldX, targetY + 1, worldZ);
+
+            if (isSolidStructure(dx, dz)) {
+                for (int y = Math.min(targetY, currentGroundY - 3); y <= currentGroundY; y++) {
+                    BlockPos p = new BlockPos(worldX, y, worldZ);
+                    if (!serverLevel.getBlockState(p).isSolid()) {
+                        serverLevel.setBlock(p, cobblestone, 2);
+                    }
+                }
+                continue;
+            }
+
+            if (isPath(dx, dz)) {
+                serverLevel.setBlock(floorPos, ((dx + dz) % 3 == 0) ? coarseDirt : dirtPath, 2);
+                serverLevel.setBlock(cropPos, air, 2);
+                continue;
+            }
+
+            double angle = Math.atan2(dz, dx);
             double shapeRadius = BASE_RADIUS * (1.0
                     + 0.25 * Math.sin(3.0 * angle + 0.8)
                     + 0.16 * Math.cos(5.0 * angle - 1.2)
                     + 0.12 * Math.sin(2.0 * angle + 2.1)
                     + 0.08 * Math.cos(7.0 * angle)
-            ) + (2.0 * Math.sin(x * 0.2) * Math.cos(z * 0.2));
-
-            BlockPos floorPos = new BlockPos(x, currentGroundY, z);
-            BlockPos cropPos = new BlockPos(x, currentCropY, z);
+            ) + (2.0 * Math.sin(dx * 0.2) * Math.cos(dz * 0.2));
 
             if (dist <= shapeRadius) {
-                // Inside the wheat field: place farmland and mature wheat (skip if already correct to eliminate lag)
+                // Inside the wheat field: place farmland and mature wheat
                 if (!serverLevel.getBlockState(floorPos).is(Blocks.FARMLAND)) {
                     serverLevel.setBlock(floorPos, moistFarmland, 2);
                 }
@@ -412,6 +493,7 @@ public class UnharvestFieldGenerator {
                 }
                 totalPlacedCrops++;
             } else if (dist > shapeRadius && dist <= shapeRadius + 2.0) {
+                // Outer perimeter border: coarse dirt & spaced lantern fence posts
                 if (!serverLevel.getBlockState(floorPos).is(Blocks.COARSE_DIRT)) {
                     serverLevel.setBlock(floorPos, coarseDirt, 2);
                 }
@@ -419,9 +501,17 @@ public class UnharvestFieldGenerator {
                     serverLevel.removeBlock(cropPos, false);
                 }
 
-                if (Math.abs(x * 31 + z * 17) % 12 == 0) {
+                if (Math.abs(worldX * 31 + worldZ * 17) % 12 == 0) {
                     serverLevel.setBlock(cropPos, fenceState, 2);
                     serverLevel.setBlock(cropPos.above(), lanternState, 2);
+                }
+            } else {
+                // Outer transition slope: natural grass
+                if (!serverLevel.getBlockState(floorPos).is(Blocks.GRASS_BLOCK)) {
+                    serverLevel.setBlock(floorPos, grassBlock, 2);
+                }
+                if (!serverLevel.getBlockState(cropPos).isAir()) {
+                    serverLevel.removeBlock(cropPos, false);
                 }
             }
         }
@@ -444,8 +534,8 @@ public class UnharvestFieldGenerator {
 
     private static void finishGeneration(MinecraftServer server, ServerLevel serverLevel, Player player) {
         // Ensure structures are pristine
-        generateWindmill(serverLevel, currentGroundY);
-        generateFarmerHouse(serverLevel, currentGroundY);
+        generateWindmill(serverLevel, currentOriginX + WINDMILL_OFFSET_X, currentOriginZ + WINDMILL_OFFSET_Z, currentGroundY);
+        generateFarmerHouse(serverLevel, currentOriginX + HOUSE_OFFSET_X, currentOriginZ + HOUSE_OFFSET_Z, currentGroundY);
 
         UnharvestState state = UnharvestState.getInstance();
         state.setFieldStats(totalPlacedCrops, 0);
@@ -453,9 +543,10 @@ public class UnharvestFieldGenerator {
         if (currentMarkerFile != null) {
             try {
                 JsonObject json = new JsonObject();
-                json.addProperty("centerX", 0);
+                json.addProperty("centerX", currentOriginX);
                 json.addProperty("centerY", currentCropY);
-                json.addProperty("centerZ", 0);
+                json.addProperty("centerZ", currentOriginZ);
+                json.addProperty("groundY", currentGroundY);
                 json.addProperty("totalCrops", totalPlacedCrops);
                 Files.writeString(currentMarkerFile, json.toString());
             } catch (Exception e) {
@@ -483,10 +574,7 @@ public class UnharvestFieldGenerator {
      * Generates a Dutch Windmill with stone base, spruce tower, dark oak cap,
      * and 4 large cross sails with white wool and fences.
      */
-    private static void generateWindmill(ServerLevel level, int groundY) {
-        int cx = WINDMILL_X;
-        int cz = WINDMILL_Z;
-
+    private static void generateWindmill(ServerLevel level, int cx, int cz, int groundY) {
         BlockState stoneBricks = Blocks.STONE_BRICKS.defaultBlockState();
         BlockState mossyBricks = Blocks.MOSSY_STONE_BRICKS.defaultBlockState();
         BlockState cobblestone = Blocks.COBBLESTONE.defaultBlockState();
@@ -496,6 +584,20 @@ public class UnharvestFieldGenerator {
         BlockState spruceFence = Blocks.SPRUCE_FENCE.defaultBlockState();
         BlockState whiteWool = Blocks.WOOL.white().defaultBlockState();
         BlockState lantern = Blocks.LANTERN.defaultBlockState();
+
+        // 0. Solid Foundation down into ground (prevent floating on uneven natural terrain)
+        for (int y = groundY - 5; y < groundY; y++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    if (dx * dx + dz * dz <= 10) {
+                        BlockPos p = new BlockPos(cx + dx, y, cz + dz);
+                        if (!level.getBlockState(p).isSolid()) {
+                            level.setBlock(p, cobblestone, 2);
+                        }
+                    }
+                }
+            }
+        }
 
         // 1. Base Floor and Walls (Y = groundY to groundY + 3) - 7x7 octagonal cylinder
         for (int y = groundY; y <= groundY + 3; y++) {
@@ -617,10 +719,7 @@ public class UnharvestFieldGenerator {
      * Generates a rustic Farmer's House / Barn with cobblestone foundation,
      * spruce wood walls, dark oak gable roof, cozy interior, and a working smoking chimney!
      */
-    private static void generateFarmerHouse(ServerLevel level, int groundY) {
-        int hx = HOUSE_X;
-        int hz = HOUSE_Z;
-
+    private static void generateFarmerHouse(ServerLevel level, int hx, int hz, int groundY) {
         BlockState cobblestone = Blocks.COBBLESTONE.defaultBlockState();
         BlockState mossyCobble = Blocks.MOSSY_COBBLESTONE.defaultBlockState();
         BlockState sprucePlanks = Blocks.SPRUCE_PLANKS.defaultBlockState();
@@ -638,9 +737,21 @@ public class UnharvestFieldGenerator {
         int maxX = hx + 4;
         int minZ = hz - 3;
         int maxZ = hz + 4;
+        int porchZ = minZ - 1;
+
+        // 0. Solid Foundation down into ground (prevent floating on uneven natural terrain)
+        for (int y = groundY - 5; y < groundY; y++) {
+            for (int x = minX - 1; x <= maxX + 1; x++) {
+                for (int z = porchZ; z <= maxZ; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    if (!level.getBlockState(p).isSolid()) {
+                        level.setBlock(p, cobblestone, 2);
+                    }
+                }
+            }
+        }
 
         // 1. Porch floor at groundY
-        int porchZ = minZ - 1;
         for (int x = hx - 2; x <= hx + 2; x++) {
             level.setBlock(new BlockPos(x, groundY, porchZ), cobblestone, 2);
             level.setBlock(new BlockPos(x, groundY + 1, porchZ), Blocks.AIR.defaultBlockState(), 2);
@@ -778,12 +889,16 @@ public class UnharvestFieldGenerator {
         int groundY = getGroundY(level);
         int cropY = groundY + 1;
         int maxScan = BASE_RADIUS + 25;
+        int originX = currentOriginX;
+        int originZ = currentOriginZ;
 
         int witheredCount = 0;
         int remainingCropCount = 0;
 
-        for (int x = -maxScan; x <= maxScan; x++) {
-            for (int z = -maxScan; z <= maxScan; z++) {
+        for (int dx = -maxScan; dx <= maxScan; dx++) {
+            for (int dz = -maxScan; dz <= maxScan; dz++) {
+                int x = originX + dx;
+                int z = originZ + dz;
                 for (int y = cropY - 1; y <= cropY + 1; y++) {
                     BlockPos p = new BlockPos(x, y, z);
                     BlockState s = level.getBlockState(p);
@@ -808,9 +923,10 @@ public class UnharvestFieldGenerator {
                 Path saveDir = server.getWorldPath(LevelResource.ROOT);
                 Path markerFile = saveDir.resolve(MARKER_FILE_NAME);
                 JsonObject json = new JsonObject();
-                json.addProperty("centerX", 0);
+                json.addProperty("centerX", currentOriginX);
                 json.addProperty("centerY", cropY);
-                json.addProperty("centerZ", 0);
+                json.addProperty("centerZ", currentOriginZ);
+                json.addProperty("groundY", groundY);
                 json.addProperty("totalCrops", total);
                 Files.writeString(markerFile, json.toString());
             } catch (Exception ignored) {}
