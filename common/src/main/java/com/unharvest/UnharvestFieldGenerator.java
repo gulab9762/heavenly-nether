@@ -17,6 +17,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FarmlandBlock;
 import net.minecraft.world.level.block.FlowerBlock;
@@ -118,11 +119,11 @@ public class UnharvestFieldGenerator {
     }
 
     /**
-     * Determines natural solid terrain surface at (x, z), ignoring foliage, flowers, and snow.
+     * Determines natural solid terrain surface at (x, z), ignoring foliage, flowers, logs, leaves, and snow.
      */
     public static int getNaturalGroundY(ServerLevel level, int x, int z) {
-        int height = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        for (int y = height; y >= level.getMinY(); y--) {
+        int height = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+        for (int y = height; y >= Math.max(level.getMinY(), 50); y--) {
             BlockPos p = new BlockPos(x, y, z);
             BlockState state = level.getBlockState(p);
             if (state.is(Blocks.WATER) || state.is(Blocks.LAVA)) {
@@ -130,11 +131,13 @@ public class UnharvestFieldGenerator {
             }
             if (!state.isAir() && !state.is(Blocks.SHORT_GRASS) && !state.is(Blocks.TALL_GRASS)
                     && !(state.getBlock() instanceof FlowerBlock) && !state.is(Blocks.SNOW)
-                    && !state.is(Blocks.FERN) && !state.is(Blocks.LARGE_FERN)) {
+                    && !state.is(Blocks.FERN) && !state.is(Blocks.LARGE_FERN)
+                    && !state.is(BlockTags.LOGS) && !state.is(BlockTags.LEAVES)
+                    && !state.is(Blocks.VINE) && !state.is(Blocks.HANGING_ROOTS)) {
                 return y;
             }
         }
-        return Math.max(63, level.getMinY() + 60);
+        return 64;
     }
 
     /**
@@ -150,14 +153,14 @@ public class UnharvestFieldGenerator {
             int y3 = getNaturalGroundY(serverLevel, originX, originZ + 16);
             int y4 = getNaturalGroundY(serverLevel, originX, originZ - 16);
             int avg = (y0 + y1 + y2 + y3 + y4) / 5;
-            return Math.max(63, avg);
+            return Math.max(64, avg);
         }
 
-        return currentGroundY > 0 ? currentGroundY : 64;
+        return currentGroundY >= 64 ? currentGroundY : 64;
     }
 
     public static int getGroundY(Level level) {
-        return currentGroundY > 0 ? currentGroundY : 64;
+        return currentGroundY >= 64 ? currentGroundY : 64;
     }
 
     public static int getWheatY(Level level) {
@@ -170,6 +173,23 @@ public class UnharvestFieldGenerator {
 
     public static int getOriginZ() {
         return currentOriginZ;
+    }
+
+    /**
+     * Identifies structure blocks belonging to the Windmill or Farmer's House.
+     * Prevents terrain clearing from accidentally slicing through roofs, balconies, and sails.
+     */
+    public static boolean isStructureBlock(BlockState state) {
+        return state.is(Blocks.STONE_BRICKS) || state.is(Blocks.MOSSY_STONE_BRICKS)
+                || state.is(Blocks.COBBLESTONE) || state.is(Blocks.MOSSY_COBBLESTONE)
+                || state.is(Blocks.SPRUCE_PLANKS) || state.is(Blocks.DARK_OAK_PLANKS)
+                || state.is(Blocks.DARK_OAK_LOG) || state.is(Blocks.SPRUCE_LOG)
+                || state.is(Blocks.SPRUCE_FENCE) || state.is(Blocks.SPRUCE_SLAB)
+                || state.is(BlockTags.WOOL) || state.is(Blocks.LANTERN)
+                || state.is(Blocks.CAMPFIRE) || state.is(Blocks.GLASS_PANE)
+                || state.is(Blocks.BARREL) || state.is(Blocks.HAY_BLOCK)
+                || state.is(Blocks.CRAFTING_TABLE) || state.is(Blocks.FURNACE)
+                || state.getBlock() instanceof BedBlock;
     }
 
     private static double distToSegment(double px, double pz, double x1, double z1, double x2, double z2) {
@@ -336,20 +356,64 @@ public class UnharvestFieldGenerator {
         UnharvestState.getInstance().setVictoryShown(false);
         UnharvestTimer.reset();
 
-        // Determine field origin dynamically from world spawn point
-        BlockPos spawn = serverLevel.getRespawnData() != null ? serverLevel.getRespawnData().pos() : new BlockPos(0, 64, 0);
-        currentOriginX = spawn.getX();
-        currentOriginZ = spawn.getZ();
-        currentGroundY = getGroundY(serverLevel, currentOriginX, currentOriginZ);
+        // Determine field origin dynamically from world spawn point or safe player position
+        BlockPos spawn = serverLevel.getRespawnData() != null ? serverLevel.getRespawnData().pos() : BlockPos.ZERO;
+        int originX = spawn.getX();
+        int originZ = spawn.getZ();
+        if (originX == 0 && originZ == 0 && player != null && player.getY() >= 60) {
+            originX = player.getBlockX();
+            originZ = player.getBlockZ();
+        }
+        currentOriginX = originX;
+        currentOriginZ = originZ;
+        currentGroundY = Math.max(64, getGroundY(serverLevel, currentOriginX, currentOriginZ));
         currentCropY = currentGroundY + 1;
 
-        // 1. Set spawn and teleport player
+        // 1. Instantly carve a guaranteed safe 9x9 spawn platform at (currentOriginX, currentGroundY, currentOriginZ)
+        BlockState dirtPath = Blocks.DIRT_PATH.defaultBlockState();
+        BlockState coarseDirt = Blocks.COARSE_DIRT.defaultBlockState();
+        BlockState dirt = Blocks.DIRT.defaultBlockState();
+        BlockState air = Blocks.AIR.defaultBlockState();
+
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                int wx = currentOriginX + dx;
+                int wz = currentOriginZ + dz;
+                // Solid foundation below
+                for (int y = currentGroundY - 6; y < currentGroundY; y++) {
+                    BlockPos p = new BlockPos(wx, y, wz);
+                    if (!serverLevel.getBlockState(p).isSolid()) {
+                        serverLevel.setBlock(p, dirt, 2);
+                    }
+                }
+                // Surface floor
+                BlockPos floor = new BlockPos(wx, currentGroundY, wz);
+                serverLevel.setBlock(floor, ((dx + dz) % 3 == 0) ? coarseDirt : dirtPath, 2);
+                // Clear 12 blocks of pure open air above player so suffocation is impossible
+                for (int y = currentGroundY + 1; y <= currentGroundY + 12; y++) {
+                    BlockPos airPos = new BlockPos(wx, y, wz);
+                    if (!serverLevel.getBlockState(airPos).isAir()) {
+                        serverLevel.setBlock(airPos, air, 2);
+                    }
+                }
+            }
+        }
+
+        // Set spawn and teleport player onto the safe platform
         BlockPos spawnPos = new BlockPos(currentOriginX, currentCropY, currentOriginZ);
         serverLevel.setRespawnData(LevelData.RespawnData.of(Level.OVERWORLD, spawnPos, 0.0f, 0.0f));
+
+        if (player != null) {
+            player.teleportTo(currentOriginX + 0.5, currentCropY, currentOriginZ + 0.5);
+            player.fallDistance = 0.0f;
+            player.setDeltaMovement(0, 0, 0);
+        }
 
         LocalPlayer localPlayer = Minecraft.getInstance().player;
         if (localPlayer != null) {
             localPlayer.teleportTo(currentOriginX + 0.5, currentCropY, currentOriginZ + 0.5);
+            localPlayer.fallDistance = 0.0f;
+            localPlayer.setDeltaMovement(0, 0, 0);
         }
 
         if (player != null) {
@@ -418,24 +482,13 @@ public class UnharvestFieldGenerator {
                 targetY = (int) Math.round((1.0 - s) * currentGroundY + s * natY);
             }
 
-            // Air excavation above target ground (clears trees, leaves, hills, floating debris)
-            if (isNearStructure(dx, dz)) {
-                for (int y = targetY + 1; y <= currentGroundY + 1; y++) {
-                    BlockPos p = new BlockPos(worldX, y, worldZ);
-                    BlockState bs = serverLevel.getBlockState(p);
-                    if (!bs.isAir() && !bs.is(Blocks.DARK_OAK_PLANKS) && !bs.is(Blocks.SPRUCE_FENCE)
-                            && !bs.is(Blocks.WOOL.white()) && !bs.is(Blocks.COBBLESTONE)
-                            && !bs.is(Blocks.SPRUCE_PLANKS) && !bs.is(Blocks.SPRUCE_LOG)) {
-                        serverLevel.setBlock(p, air, 2);
-                    }
-                }
-            } else {
-                int clearTop = Math.min(serverLevel.getMaxY(), Math.max(natY + 10, targetY + 10));
-                for (int y = targetY + 1; y <= clearTop; y++) {
-                    BlockPos p = new BlockPos(worldX, y, worldZ);
-                    if (!serverLevel.getBlockState(p).isAir()) {
-                        serverLevel.setBlock(p, air, 2);
-                    }
+            // Air excavation above target ground (clears trees, leaves, hills, floating debris up to 32 blocks high)
+            int clearTop = Math.min(serverLevel.getMaxY(), Math.max(natY + 20, targetY + 32));
+            for (int y = targetY + 1; y <= clearTop; y++) {
+                BlockPos p = new BlockPos(worldX, y, worldZ);
+                BlockState bs = serverLevel.getBlockState(p);
+                if (!bs.isAir() && (!isNearStructure(dx, dz) || !isStructureBlock(bs))) {
+                    serverLevel.setBlock(p, air, 2);
                 }
             }
 
@@ -585,16 +638,21 @@ public class UnharvestFieldGenerator {
         BlockState whiteWool = Blocks.WOOL.white().defaultBlockState();
         BlockState lantern = Blocks.LANTERN.defaultBlockState();
 
-        // 0. Solid Foundation down into ground (prevent floating on uneven natural terrain)
-        for (int y = groundY - 5; y < groundY; y++) {
-            for (int dx = -3; dx <= 3; dx++) {
-                for (int dz = -3; dz <= 3; dz++) {
-                    if (dx * dx + dz * dz <= 10) {
-                        BlockPos p = new BlockPos(cx + dx, y, cz + dz);
-                        if (!level.getBlockState(p).isSolid()) {
-                            level.setBlock(p, cobblestone, 2);
-                        }
+        // 0. Clear entire windmill bounding box of any trees, logs, leaves, or obstacles, and fill foundation below
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int dz = -5; dz <= 5; dz++) {
+                int wx = cx + dx;
+                int wz = cz + dz;
+                // Solid cobblestone foundation below
+                for (int y = groundY - 6; y < groundY; y++) {
+                    BlockPos p = new BlockPos(wx, y, wz);
+                    if (!level.getBlockState(p).isSolid()) {
+                        level.setBlock(p, cobblestone, 2);
                     }
+                }
+                // Air clearance above (up to hub/sail peak height + 22) to wipe out any birch/oak trees
+                for (int y = groundY; y <= groundY + 22; y++) {
+                    level.setBlock(new BlockPos(wx, y, wz), Blocks.AIR.defaultBlockState(), 2);
                 }
             }
         }
@@ -739,14 +797,19 @@ public class UnharvestFieldGenerator {
         int maxZ = hz + 4;
         int porchZ = minZ - 1;
 
-        // 0. Solid Foundation down into ground (prevent floating on uneven natural terrain)
-        for (int y = groundY - 5; y < groundY; y++) {
-            for (int x = minX - 1; x <= maxX + 1; x++) {
-                for (int z = porchZ; z <= maxZ; z++) {
+        // 0. Clear entire house bounding box of any trees, logs, leaves, or obstacles, and fill foundation below
+        for (int x = minX - 2; x <= maxX + 2; x++) {
+            for (int z = porchZ - 1; z <= maxZ + 2; z++) {
+                // Foundation below
+                for (int y = groundY - 6; y < groundY; y++) {
                     BlockPos p = new BlockPos(x, y, z);
                     if (!level.getBlockState(p).isSolid()) {
                         level.setBlock(p, cobblestone, 2);
                     }
+                }
+                // Air clearance above (up to roof/chimney smoke height + 14)
+                for (int y = groundY; y <= groundY + 14; y++) {
+                    level.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState(), 2);
                 }
             }
         }
@@ -948,5 +1011,13 @@ public class UnharvestFieldGenerator {
 
     public static void clearCache() {
         stopGeneration();
+        currentOriginX = 0;
+        currentOriginZ = 0;
+        currentGroundY = 64;
+        currentCropY = 65;
+        currentMarkerFile = null;
+        totalPlacedCrops = 0;
+        processedPointsCount = 0;
+        pendingPoints.clear();
     }
 }
