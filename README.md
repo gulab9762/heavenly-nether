@@ -1,6 +1,6 @@
-﻿# Mod Template
+﻿# Java Runner
 
-Clean multiloader mod template for Minecraft 26.3 supporting Fabric, NeoForge, and Forge.
+Execute dynamic Java code inside Minecraft live from chat commands or script files
 
 ## Supported Mod Loaders
 - **Fabric** (Fabric 0.160.6+26.3)

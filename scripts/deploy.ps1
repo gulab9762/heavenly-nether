@@ -7,7 +7,7 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Deploying Mod Template Mod [$Loader]" -ForegroundColor Cyan
+Write-Host " Deploying Java Runner Mod [$Loader]" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 $searchPath = switch ($Loader.ToLower()) {
@@ -22,7 +22,7 @@ if (-not (Test-Path $searchPath)) {
     exit 1
 }
 
-$jar = Get-ChildItem -Path $searchPath -Filter "*modtemplate*.jar" | 
+$jar = Get-ChildItem -Path $searchPath -Filter "*jrunner*.jar" | 
     Where-Object { $_.Name -notmatch "sources|javadoc" } | 
     Sort-Object LastWriteTime -Descending | 
     Select-Object -First 1
@@ -57,7 +57,7 @@ if (-not (Test-Path $MultiMcModsDir)) {
 }
 
 # Remove older versions of this mod in mods directory to prevent duplicate collisions
-Get-ChildItem -Path $MultiMcModsDir -Include "*modtemplate*.jar" -File | ForEach-Object {
+Get-ChildItem -Path $MultiMcModsDir -Include "*jrunner*.jar" -File | ForEach-Object {
     Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
     Write-Host "[-] Removed previous build from MultiMC: $($_.Name)" -ForegroundColor Yellow
 }

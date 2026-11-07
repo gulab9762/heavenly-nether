@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.example.modtemplate.fabric.ModTemplateFabric"
+            "com.gulab.jrunner.fabric.JavaRunnerFabric"
         ],
         "client": [
-            "com.example.modtemplate.fabric.client.ModTemplateFabricClient"
+            "com.gulab.jrunner.fabric.client.JavaRunnerFabricClient"
         ]
     },
     "mixins": [

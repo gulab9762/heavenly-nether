@@ -31,9 +31,10 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'modtemplate'
+rootProject.name = 'jrunner'
 includeBuild('build-logic')
 include('common')
 include('fabric')
 include('neoforge')
+
 
