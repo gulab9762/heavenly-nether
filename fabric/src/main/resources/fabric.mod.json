@@ -1,4 +1,4 @@
-{
+﻿{
     "schemaVersion": 1,
     "id": "${mod_id}",
     "version": "${version}",
@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.blockplace.fabric.BlockPlaceFabric"
+            "com.example.modtemplate.fabric.ModTemplateFabric"
         ],
         "client": [
-            "com.blockplace.fabric.client.BlockPlaceFabricClient"
+            "com.example.modtemplate.fabric.client.ModTemplateFabricClient"
         ]
     },
     "mixins": [

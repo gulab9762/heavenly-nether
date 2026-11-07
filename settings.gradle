@@ -1,4 +1,4 @@
-pluginManagement {
+﻿pluginManagement {
     repositories {
         gradlePluginPortal()
         mavenCentral()
@@ -31,8 +31,9 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'block-place'
+rootProject.name = 'modtemplate'
 includeBuild('build-logic')
 include('common')
 include('fabric')
 include('neoforge')
+

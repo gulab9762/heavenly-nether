@@ -1,123 +1,32 @@
-# Block Place Animations
+﻿# Mod Template
 
-A client-side Minecraft mod (for **Minecraft 26.3** Fabric & NeoForge) that adds fluid, satisfying visual animations when placing blocks in first-person view.
+Clean multiloader mod template for Minecraft 26.3 supporting Fabric, NeoForge, and Forge.
 
-Inspired by [A Good Place](https://modrinth.com/mod/a-good-place), this mod gives tactile weight and visual feedback to building: blocks visibly travel from the player's held hand to the target placement position, dynamically scaling and rotating into place.
+## Supported Mod Loaders
+- **Fabric** (Fabric 0.160.6+26.3)
+- **NeoForge** (NeoForge 26.3.0.1-beta)
+- **MinecraftForge** (Forge 66.0.10)
 
----
-
-## ✨ Features
-
-- **Hand-to-Target Flight**:
-  - Dynamically calculates the 3D world coordinates of the player's held hand in first-person perspective, accounting for camera eye position, look direction, yaw, pitch, and player arm orientation (main hand / off hand, right-handed / left-handed).
-- **Dynamic Size Scaling**:
-  - Starts miniature at hand scale (~`0.32x`) and smoothly expands to full block size (`1.0x`) as it approaches the target block location.
-  - Includes a subtle arrival settle bounce for a satisfying snap.
-- **Flight Trajectory & Rotation**:
-  - Smooth cubic ease-out deceleration curve with a parabolic travel arc.
-  - Rotates from the natural tilt of the player's hand to align with the world block grid.
-- **Chunk & Block Entity Occlusion**:
-  - While the block is in transit, it is temporarily hidden from static chunk baking (`SectionCompiler`) and dynamic block entity extraction (`BlockEntityRenderDispatcher`).
-  - Upon arrival, the block is seamlessly committed to the chunk mesh with optional subtle placement particles.
-- **Modern Rendering Pipeline**:
-  - Built natively for Minecraft 26.3 utilizing the modern `SubmitNodeCollector` and `MovingBlockRenderState` pipeline.
-- **Multi-Loader Architecture**:
-  - Clean separation between platform-independent animation logic (`common`), Fabric client implementation (`fabric`), and NeoForge client implementation (`neoforge`).
-
----
-
-## 📁 Project Structure
-
-```
-block-place/
-├── build-logic/         # Shared multi-loader Gradle convention plugins
-├── common/              # Platform-agnostic client logic, trajectories & mixins
-│   └── src/main/java/com/blockplace/
-│       ├── BlockPlaceCommon.java
-│       ├── Constants.java
-│       ├── client/
-│       │   ├── animation/
-│       │   │   ├── BlockFlyAnimation.java
-│       │   │   ├── BlockPlacementManager.java
-│       │   │   └── FirstPersonHandHelper.java
-│       │   └── config/
-│       │       └── BlockPlaceConfig.java
-│       └── mixin/
-│           ├── BlockEntityRenderDispatcherMixin.java
-│           ├── BlockItemMixin.java
-│           ├── LevelRendererMixin.java
-│           └── SectionCompilerMixin.java
-├── fabric/              # Fabric loader module
-│   └── src/main/java/com/blockplace/fabric/
-│       ├── BlockPlaceFabric.java
-│       └── client/BlockPlaceFabricClient.java
-└── neoforge/            # NeoForge loader module
-    └── src/main/java/com/blockplace/neoforge/
-        └── BlockPlaceNeoForge.java
-```
-
----
-
-## 🛠️ VS Code Tasks
-
-The project includes pre-configured tasks in [.vscode/tasks.json](file:///c:/Users/Gulab/IdeaProjects/block-place/.vscode/tasks.json) accessible via `Ctrl+Shift+P` -> **Tasks: Run Task** or `Ctrl+Shift+B`:
-
-1. **`Minecraft: Build and Deploy (Fabric)`** *(Default Build Task - `Ctrl+Shift+B`)*:
-   - Builds the Fabric JAR and automatically deploys it to:
-     - Downloads: `C:\Users\Gulab\Downloads\`
-     - MultiMC: `D:\MultiMC\instances\26.3\.minecraft\mods\`
-2. **`Minecraft: Start Fabric Client`** *(Default Test/Run Task)*:
-   - Starts the Fabric 26.3 development game client (`:fabric:runClient`).
-3. **`Minecraft: Start Fabric Client (Debug JVM)`**:
-   - Launches client with debug JVM port enabled for attaching IDE debugger.
-4. **`Minecraft: Deploy JAR Only (Skip Build)`**:
-   - Copies existing built JAR to Downloads and MultiMC without re-compiling.
-5. **`Minecraft: Start NeoForge Client`**:
-   - Starts the NeoForge 26.3 development game client.
-
----
-
-## 🛠️ Building & Running
-
-### Prerequisites
-- **JDK 25** (installed and configured in `gradle.properties`)
-
-### Gradle Commands
-
-- **Build Fabric Mod JAR**:
+## Building
+- Build Universal JAR (Fabric + NeoForge + Forge combined):
+  ```powershell
+  .\gradlew.bat universalJar
+  ```
+- Build Fabric only:
   ```powershell
   .\gradlew.bat buildFabric
   ```
-  *Output:* `fabric/build/libs/blockplace-fabric-26.3-1.0.0.jar`
-
-- **Run Fabric Client**:
-  ```powershell
-  .\gradlew.bat runFabricClient
-  ```
-
-- **Build NeoForge Mod JAR**:
+- Build NeoForge only:
   ```powershell
   .\gradlew.bat buildNeoForge
   ```
-  *Output:* `neoforge/build/libs/blockplace-neoforge-26.3-1.0.0.jar`
-
-- **Build All Loader JARs**:
+- Build Forge only:
   ```powershell
-  .\gradlew.bat buildAllMods
+  .\gradlew.bat buildForge
   ```
 
----
-
-## ⚙️ Configuration
-
-Animation parameters can be adjusted via [BlockPlaceConfig.java](file:///c:/Users/Gulab/IdeaProjects/block-place/common/src/main/java/com/blockplace/client/config/BlockPlaceConfig.java):
-
-| Option | Default | Description |
-|---|---|---|
-| `durationTicks` | `5` (~250 ms) | Duration of the flight animation in game ticks |
-| `startScale` | `0.32f` | Initial scale when leaving the player hand |
-| `arcHeight` | `0.18f` | Parabolic peak height along trajectory |
-| `initialTiltDegrees` | `25.0f` | Initial rotational tilt from hand angle |
-| `enableSettleBounce` | `true` | Subtle spring bounce upon landing |
-| `enableArrivalParticles`| `true` | Subtle block landing puff |
-| `firstPersonOnly` | `true` | Enable exclusively in first-person camera |
+## Deploying
+Deploy the compiled JAR to MultiMC and Downloads:
+```powershell
+.\scripts\deploy.ps1 -Loader universal
+```
