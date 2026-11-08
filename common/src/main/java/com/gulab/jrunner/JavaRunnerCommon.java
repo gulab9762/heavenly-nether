@@ -1,4 +1,4 @@
-﻿package com.gulab.jrunner;
+package com.gulab.jrunner;
 
 public class JavaRunnerCommon {
     public static void init() {

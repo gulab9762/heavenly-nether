@@ -1,4 +1,4 @@
-﻿package com.gulab.jrunner.fabric.client;
+package com.gulab.jrunner.fabric.client;
 
 import net.fabricmc.api.ClientModInitializer;
 

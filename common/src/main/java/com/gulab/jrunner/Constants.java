@@ -1,4 +1,4 @@
-﻿package com.gulab.jrunner;
+package com.gulab.jrunner;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

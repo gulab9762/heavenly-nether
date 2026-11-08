@@ -1,4 +1,4 @@
-﻿# Java Runner
+# Java Runner
 
 Execute dynamic Java code inside Minecraft live from chat commands or script files
 

@@ -1,4 +1,4 @@
-﻿package com.gulab.jrunner.forge;
+package com.gulab.jrunner.forge;
 
 import com.gulab.jrunner.Constants;
 import com.gulab.jrunner.JavaRunnerCommon;
