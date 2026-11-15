@@ -1,4 +1,4 @@
-﻿{
+{
     "schemaVersion": 1,
     "id": "${mod_id}",
     "version": "${version}",
@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.example.modtemplate.fabric.ModTemplateFabric"
+            "com.igxxd.throwdisc.fabric.ThrowingDiscsFabric"
         ],
         "client": [
-            "com.example.modtemplate.fabric.client.ModTemplateFabricClient"
+            "com.igxxd.throwdisc.fabric.client.ThrowingDiscsFabricClient"
         ]
     },
     "mixins": [

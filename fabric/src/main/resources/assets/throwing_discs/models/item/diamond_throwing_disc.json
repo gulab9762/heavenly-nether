@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "throwing_discs:item/diamond_throwing_disc"
+  }
+}

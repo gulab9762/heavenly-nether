@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "throwing_discs:item/iron_throwing_disc"
+  }
+}

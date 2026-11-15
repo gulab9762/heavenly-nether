@@ -1,0 +1,9 @@
+{
+  "item.throwing_discs.copper_throwing_disc": "Copper Throwing Disc",
+  "item.throwing_discs.iron_throwing_disc": "Iron Throwing Disc",
+  "item.throwing_discs.gold_throwing_disc": "Gold Throwing Disc",
+  "item.throwing_discs.diamond_throwing_disc": "Diamond Throwing Disc",
+  "item.throwing_discs.netherite_throwing_disc": "Netherite Throwing Disc",
+  "enchantment.throwing_discs.bounce": "Bounce",
+  "enchantment.throwing_discs.split": "Split"
+}

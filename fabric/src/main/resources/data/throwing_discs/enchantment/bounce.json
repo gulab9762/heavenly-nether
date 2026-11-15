@@ -1,0 +1,11 @@
+{
+  "anvil_cost": 2,
+  "description": {"translate": "enchantment.throwing_discs.bounce"},
+  "effects": {},
+  "max_cost": {"base": 55, "per_level_above_first": 20},
+  "max_level": 3,
+  "min_cost": {"base": 5, "per_level_above_first": 15},
+  "slots": ["mainhand"],
+  "supported_items": "#throwing_discs:enchantable/throwing_discs",
+  "weight": 5
+}
