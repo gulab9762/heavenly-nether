@@ -12,14 +12,17 @@ import net.minecraft.server.level.ServerPlayer;
 
 public class GridCommands {
 
+    public static final int DEFAULT_WIDTH = 500;
+    public static final int DEFAULT_SPACING = 3;
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("grid")
                         .requires(GridCommands::hasPermission)
-                        // Default execution: /grid -> starts glass grid with 1000 width, 4 spacing, origin pos + 2
-                        .executes(context -> startGrid(context.getSource(), GridGenerator.Mode.GLASS, 1000, 4))
+                        // Default execution: /grid -> starts glass grid with 500 width, 3 spacing, origin pos + 2
+                        .executes(context -> startGrid(context.getSource(), GridGenerator.Mode.GLASS, DEFAULT_WIDTH, DEFAULT_SPACING))
                         .then(Commands.literal("start")
-                                .executes(context -> startGrid(context.getSource(), GridGenerator.Mode.GLASS, 1000, 4))
+                                .executes(context -> startGrid(context.getSource(), GridGenerator.Mode.GLASS, DEFAULT_WIDTH, DEFAULT_SPACING))
                                 .then(Commands.argument("mode", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {
                                             builder.suggest("glass");
@@ -30,7 +33,7 @@ public class GridCommands {
                                             String modeStr = StringArgumentType.getString(context, "mode");
                                             GridGenerator.Mode mode = modeStr.equalsIgnoreCase("lanterns") ?
                                                     GridGenerator.Mode.LANTERNS : GridGenerator.Mode.GLASS;
-                                            return startGrid(context.getSource(), mode, 1000, 4);
+                                            return startGrid(context.getSource(), mode, DEFAULT_WIDTH, DEFAULT_SPACING);
                                         })
                                         .then(Commands.argument("width", IntegerArgumentType.integer(10, 5000))
                                                 .executes(context -> {
@@ -38,7 +41,7 @@ public class GridCommands {
                                                     GridGenerator.Mode mode = modeStr.equalsIgnoreCase("lanterns") ?
                                                             GridGenerator.Mode.LANTERNS : GridGenerator.Mode.GLASS;
                                                     int width = IntegerArgumentType.getInteger(context, "width");
-                                                    return startGrid(context.getSource(), mode, width, 4);
+                                                    return startGrid(context.getSource(), mode, width, DEFAULT_SPACING);
                                                 })
                                                 .then(Commands.argument("spacing", IntegerArgumentType.integer(1, 64))
                                                         .executes(context -> {
