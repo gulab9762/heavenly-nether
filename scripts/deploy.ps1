@@ -1,5 +1,5 @@
 ﻿param (
-    [string]$Loader = "universal",
+    [string]$Loader = "fabric",
     [string]$MultiMcModsDir = "D:\MultiMC\instances\26.3\.minecraft\mods",
     [string]$DownloadsDir = "$env:USERPROFILE\Downloads"
 )
@@ -7,36 +7,23 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Deploying Java Runner Mod [$Loader]" -ForegroundColor Cyan
+Write-Host " Deploying StructEntity Mod [$Loader]" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-$searchPath = switch ($Loader.ToLower()) {
-    "neoforge" { "neoforge\build\libs" }
-    "fabric"   { "fabric\build\libs" }
-    "forge"    { "forge\build\libs" }
-    default    { "build\libs" }
-}
+$searchPath = "fabric\build\libs"
 
 if (-not (Test-Path $searchPath)) {
-    Write-Error "Build output directory not found: $searchPath. Please run '.\gradlew.bat universalJar' first."
+    Write-Error "Build output directory not found: $searchPath. Please run '.\gradlew.bat buildFabric' first."
     exit 1
 }
 
-$jar = Get-ChildItem -Path $searchPath -Filter "*jrunner*.jar" | 
+$jar = Get-ChildItem -Path $searchPath -Filter "*structentity*.jar" | 
     Where-Object { $_.Name -notmatch "sources|javadoc" } | 
     Sort-Object LastWriteTime -Descending | 
     Select-Object -First 1
 
 if (-not $jar) {
-    # Fallback to any jar in directory
-    $jar = Get-ChildItem -Path $searchPath -Filter "*.jar" | 
-        Where-Object { $_.Name -notmatch "sources|javadoc" } | 
-        Sort-Object LastWriteTime -Descending | 
-        Select-Object -First 1
-}
-
-if (-not $jar) {
-    Write-Error "No compiled mod JAR found in $searchPath. Run '.\gradlew.bat universalJar' first."
+    Write-Error "No compiled mod JAR found in $searchPath. Run '.\gradlew.bat buildFabric' first."
     exit 1
 }
 
@@ -57,7 +44,7 @@ if (-not (Test-Path $MultiMcModsDir)) {
 }
 
 # Remove older versions of this mod in mods directory to prevent duplicate collisions
-Get-ChildItem -Path $MultiMcModsDir -Include "*jrunner*.jar" -File | ForEach-Object {
+Get-ChildItem -Path $MultiMcModsDir -Include "*structentity*.jar" -File | ForEach-Object {
     Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
     Write-Host "[-] Removed previous build from MultiMC: $($_.Name)" -ForegroundColor Yellow
 }

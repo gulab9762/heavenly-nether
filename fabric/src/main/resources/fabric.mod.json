@@ -13,10 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.gulab.jrunner.fabric.JavaRunnerFabric"
+            "com.igxxd.structentity.fabric.StructEntityFabric"
         ],
         "client": [
-            "com.gulab.jrunner.fabric.client.JavaRunnerFabricClient"
+            "com.igxxd.structentity.fabric.client.StructEntityFabricClient"
         ]
     },
     "mixins": [

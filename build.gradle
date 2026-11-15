@@ -3,13 +3,6 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.147' apply false
 }
 
-tasks.register('buildAllMods') {
-    group = 'build'
-    description = 'Builds all supported mod loader JARs.'
-    dependsOn ':fabric:build', ':neoforge:build'
-}
-
-// Fabric Tasks
 tasks.register('buildFabric') {
     group = 'fabric'
     description = 'Builds the Fabric mod JAR.'
@@ -33,37 +26,3 @@ tasks.register('cleanFabric') {
     description = 'Cleans Fabric build outputs.'
     dependsOn ':fabric:clean'
 }
-
-// NeoForge Tasks
-tasks.register('buildNeoForge') {
-    group = 'neoforge'
-    description = 'Builds the NeoForge mod JAR.'
-    dependsOn ':neoforge:build'
-}
-
-tasks.register('runNeoForgeClient') {
-    group = 'neoforge'
-    description = 'Runs the NeoForge development client.'
-    dependsOn ':neoforge:runClient'
-}
-
-// Notification Task
-tasks.register('notifyBuildComplete') {
-    group = 'notification'
-    description = 'Sends a notification to ntfy.sh/antigravity upon build completion.'
-    doLast {
-        def ntfyUrl = new URI('https://ntfy.sh/antigravity').toURL()
-        def conn = ntfyUrl.openConnection() as HttpURLConnection
-        conn.requestMethod = 'POST'
-        conn.doOutput = true
-        conn.setRequestProperty('Title', 'Block Place Mod Built')
-        conn.setRequestProperty('Tags', 'white_check_mark,package')
-        conn.outputStream.withWriter('UTF-8') { writer ->
-            writer.write("Block Place mod build finished successfully for Minecraft ${project.minecraft_version}!")
-        }
-        def responseCode = conn.responseCode
-        println "Notification sent to ntfy.sh/antigravity (Status: ${responseCode})"
-    }
-}
-
-
