@@ -127,8 +127,12 @@ public class GridCommands {
     }
 
     private static boolean hasPermission(CommandSourceStack source) {
-        if (source.getServer().isSingleplayer()) return true;
+        if (source == null) return true;
+        net.minecraft.server.MinecraftServer server = source.getServer();
+        if (server == null) return true;
+        if (server.isSingleplayer()) return true;
         if (source.getPlayer() == null) return true;
-        return source.getServer().getPlayerList().isOp(source.getPlayer().nameAndId());
+        if (server.getPlayerList() == null) return true;
+        return server.getPlayerList().isOp(source.getPlayer().nameAndId());
     }
 }
