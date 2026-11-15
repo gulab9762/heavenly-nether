@@ -15,8 +15,24 @@ public class GridGenerator {
 
     public enum Mode {
         GLASS,
-        LANTERNS
+        LANTERNS,
+        RAINBOW,
+        RAINBOW_LANTERNS
     }
+
+    public static final Block[] RAINBOW_GLASS = new Block[] {
+            Blocks.STAINED_GLASS.red(),
+            Blocks.STAINED_GLASS.orange(),
+            Blocks.STAINED_GLASS.yellow(),
+            Blocks.STAINED_GLASS.lime(),
+            Blocks.STAINED_GLASS.green(),
+            Blocks.STAINED_GLASS.cyan(),
+            Blocks.STAINED_GLASS.lightBlue(),
+            Blocks.STAINED_GLASS.blue(),
+            Blocks.STAINED_GLASS.purple(),
+            Blocks.STAINED_GLASS.magenta(),
+            Blocks.STAINED_GLASS.pink()
+    };
 
     public static class Task {
         public final ServerLevel world;
@@ -114,11 +130,19 @@ public class GridGenerator {
             }
 
             BlockPos targetPos = new BlockPos(posX, posY, posZ);
-            task.world.setBlock(targetPos, Blocks.GLASS.defaultBlockState(), Block.UPDATE_CLIENTS);
+
+            Block glassBlock = Blocks.GLASS;
+            if (task.mode == Mode.RAINBOW || task.mode == Mode.RAINBOW_LANTERNS) {
+                int stepIndex = (task.currentX / task.stride) + (task.currentZ / task.stride) + (task.currentY / task.stride);
+                int colorIdx = Math.floorMod(stepIndex, RAINBOW_GLASS.length);
+                glassBlock = RAINBOW_GLASS[colorIdx];
+            }
+
+            task.world.setBlock(targetPos, glassBlock.defaultBlockState(), Block.UPDATE_CLIENTS);
             task.blocksPlaced++;
             placedThisTick++;
 
-            if (task.mode == Mode.LANTERNS && posY - 1 >= task.world.getMinY()) {
+            if ((task.mode == Mode.LANTERNS || task.mode == Mode.RAINBOW_LANTERNS) && posY - 1 >= task.world.getMinY()) {
                 BlockPos below = targetPos.below();
                 task.world.setBlock(below, Blocks.LANTERN.defaultBlockState().setValue(LanternBlock.HANGING, true), Block.UPDATE_CLIENTS);
             }

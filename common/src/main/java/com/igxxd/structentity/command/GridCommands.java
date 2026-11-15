@@ -27,27 +27,23 @@ public class GridCommands {
                                         .suggests((ctx, builder) -> {
                                             builder.suggest("glass");
                                             builder.suggest("lanterns");
+                                            builder.suggest("rainbow");
+                                            builder.suggest("rainbow_lanterns");
                                             return builder.buildFuture();
                                         })
                                         .executes(context -> {
-                                            String modeStr = StringArgumentType.getString(context, "mode");
-                                            GridGenerator.Mode mode = modeStr.equalsIgnoreCase("lanterns") ?
-                                                    GridGenerator.Mode.LANTERNS : GridGenerator.Mode.GLASS;
+                                            GridGenerator.Mode mode = parseMode(StringArgumentType.getString(context, "mode"));
                                             return startGrid(context.getSource(), mode, DEFAULT_WIDTH, DEFAULT_SPACING);
                                         })
                                         .then(Commands.argument("width", IntegerArgumentType.integer(10, 5000))
                                                 .executes(context -> {
-                                                    String modeStr = StringArgumentType.getString(context, "mode");
-                                                    GridGenerator.Mode mode = modeStr.equalsIgnoreCase("lanterns") ?
-                                                            GridGenerator.Mode.LANTERNS : GridGenerator.Mode.GLASS;
+                                                    GridGenerator.Mode mode = parseMode(StringArgumentType.getString(context, "mode"));
                                                     int width = IntegerArgumentType.getInteger(context, "width");
                                                     return startGrid(context.getSource(), mode, width, DEFAULT_SPACING);
                                                 })
                                                 .then(Commands.argument("spacing", IntegerArgumentType.integer(1, 64))
                                                         .executes(context -> {
-                                                            String modeStr = StringArgumentType.getString(context, "mode");
-                                                            GridGenerator.Mode mode = modeStr.equalsIgnoreCase("lanterns") ?
-                                                                    GridGenerator.Mode.LANTERNS : GridGenerator.Mode.GLASS;
+                                                            GridGenerator.Mode mode = parseMode(StringArgumentType.getString(context, "mode"));
                                                             int width = IntegerArgumentType.getInteger(context, "width");
                                                             int spacing = IntegerArgumentType.getInteger(context, "spacing");
                                                             return startGrid(context.getSource(), mode, width, spacing);
@@ -127,6 +123,16 @@ public class GridCommands {
         )), true);
 
         return 1;
+    }
+
+    private static GridGenerator.Mode parseMode(String modeStr) {
+        if (modeStr == null) return GridGenerator.Mode.GLASS;
+        return switch (modeStr.toLowerCase(java.util.Locale.ROOT)) {
+            case "lanterns", "lantern" -> GridGenerator.Mode.LANTERNS;
+            case "rainbow" -> GridGenerator.Mode.RAINBOW;
+            case "rainbow_lanterns", "rainbow-lanterns", "rainbowlanterns" -> GridGenerator.Mode.RAINBOW_LANTERNS;
+            default -> GridGenerator.Mode.GLASS;
+        };
     }
 
     private static boolean hasPermission(CommandSourceStack source) {

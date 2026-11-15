@@ -1,4 +1,4 @@
-﻿param (
+param (
     [string]$Loader = "fabric",
     [string]$MultiMcModsDir = "D:\MultiMC\instances\26.3\.minecraft\mods",
     [string]$DownloadsDir = "$env:USERPROFILE\Downloads"
